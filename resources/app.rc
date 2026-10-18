@@ -1,0 +1,32 @@
+#include <windows.h>
+#include "version.h"
+101 ICON "app.ico"
+201 RCDATA "fonts/Rubik-300.ttf"
+202 RCDATA "fonts/Rubik-400.ttf"
+203 RCDATA "fonts/Rubik-500.ttf"
+204 RCDATA "fonts/Rubik-600.ttf"
+205 RCDATA "fonts/Onest-400.ttf"
+1 VERSIONINFO
+FILEVERSION GOODVIEW_FILE_VERSION
+PRODUCTVERSION GOODVIEW_FILE_VERSION
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "WindowsGoodView Desktop\0"
+            VALUE "FileVersion", GOODVIEW_VERSION "\0"
+            VALUE "InternalName", "WindowsGoodView\0"
+            VALUE "OriginalFilename", "WindowsGoodView.exe\0"
+            VALUE "ProductName", "WindowsGoodView\0"
+            VALUE "ProductVersion", GOODVIEW_VERSION "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

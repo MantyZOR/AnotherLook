@@ -1,0 +1,15 @@
+if(NOT DEFINED TEST_APP OR NOT DEFINED TEST_MODE OR NOT DEFINED TEST_ROOT)
+  message(FATAL_ERROR "TEST_APP, TEST_MODE and TEST_ROOT are required")
+endif()
+string(TIMESTAMP stamp "%Y%m%d-%H%M%S")
+string(RANDOM LENGTH 8 ALPHABET 0123456789abcdef nonce)
+set(profile "${TEST_ROOT}/${TEST_NAME}-${stamp}-${nonce}")
+# Each invocation owns a new profile. A failed run stays available for diagnosis.
+execute_process(COMMAND "${TEST_APP}" "${TEST_MODE}" --data "${profile}"
+  RESULT_VARIABLE result TIMEOUT 40)
+if(result STREQUAL "77")
+  message("SKIP: ${TEST_NAME}: desktop focus was unavailable. Profile: ${profile}")
+elseif(NOT result STREQUAL "0")
+  message(FATAL_ERROR "${TEST_NAME}: ${result}. Profile: ${profile}")
+endif()
+message(STATUS "${TEST_NAME}: ${profile}")

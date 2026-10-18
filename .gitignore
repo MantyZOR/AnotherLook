@@ -1,0 +1,24 @@
+/build/
+/dist/
+/third_party/*
+!/third_party/fonts/
+!/third_party/lucide/
+/data/
+/test-artifacts/
+*.user
+*.suo
+
+# Local design history, diagnostics and personal planning notes.
+/design/
+/CONCEPT.md
+/ARCHITECTURE.md
+/ARCHITECTURE_REVIEW.md
+/FILE_SEARCH_ARCHITECTURE.md
+/VALIDATION.md
+/.codex/
+/.agents/
+/.env
+/.env.*
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

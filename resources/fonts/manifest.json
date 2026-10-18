@@ -1,0 +1,67 @@
+[
+  {
+    "file": "resources\\fonts\\Rubik-300.ttf",
+    "bytes": 211256,
+    "sha256": "594d0b53f7514cb47df10ebcdda40ae30e9625cf4462ab78d2fc5ea9e0cdb0db",
+    "names": {
+      "1": "Rubik Light",
+      "2": "Regular",
+      "6": "Rubik-Light",
+      "16": "Rubik",
+      "17": "Light"
+    },
+    "sourceSha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
+  },
+  {
+    "file": "resources\\fonts\\Rubik-400.ttf",
+    "bytes": 212204,
+    "sha256": "037bd82dda9de8c1a331743ccdd9da8dc82d3ba2d1f65f3515cd5723729348ed",
+    "names": {
+      "1": "Rubik",
+      "2": "Regular",
+      "6": "Rubik-Regular",
+      "16": null,
+      "17": null
+    },
+    "sourceSha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
+  },
+  {
+    "file": "resources\\fonts\\Rubik-500.ttf",
+    "bytes": 212120,
+    "sha256": "d9f44f2c1b4e84ed6f9a9260824f24a8b049251660b4a32c4a11805d945796e3",
+    "names": {
+      "1": "Rubik Medium",
+      "2": "Regular",
+      "6": "Rubik-Medium",
+      "16": "Rubik",
+      "17": "Medium"
+    },
+    "sourceSha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
+  },
+  {
+    "file": "resources\\fonts\\Rubik-600.ttf",
+    "bytes": 212148,
+    "sha256": "eb518546e2e98aa40f49fdcf80d9941917077199a8fff1341dd122ced2c6cfeb",
+    "names": {
+      "1": "Rubik SemiBold",
+      "2": "Regular",
+      "6": "Rubik-SemiBold",
+      "16": "Rubik",
+      "17": "SemiBold"
+    },
+    "sourceSha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
+  },
+  {
+    "file": "resources\\fonts\\Onest-400.ttf",
+    "bytes": 98072,
+    "sha256": "6931e35ef119bbe3043b4e407171bb47c03cf2a02bcdeea369b6c82723e9c683",
+    "names": {
+      "1": "Onest",
+      "2": "Regular",
+      "6": "Onest-Regular",
+      "16": null,
+      "17": null
+    },
+    "sourceSha256": "966c5c29b4755da84b6854d5c21dd4eaa2420225d0e9874de602de176d4a9f31"
+  }
+]

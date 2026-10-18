@@ -1,0 +1,4 @@
+#pragma once
+#define GOODVIEW_VERSION "0.8.11"
+#define GOODVIEW_VERSION_W L"0.8.11"
+#define GOODVIEW_FILE_VERSION 0,8,11,0

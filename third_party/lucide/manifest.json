@@ -1,0 +1,25 @@
+{
+  "retrieved": "2026-10-18",
+  "files": [
+    {
+      "file": "compass.svg",
+      "sha256": "c5a4d147bf48424f48b514712dd61c1b07cb689612a7baef87c88870092c1659",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/compass.svg"
+    },
+    {
+      "file": "gamepad-2.svg",
+      "sha256": "b0671de7afbebdafc4d655d867d9851947170b906fb187e749410039df867509",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/gamepad-2.svg"
+    },
+    {
+      "file": "moon.svg",
+      "sha256": "205b959e940d5841f0ce1d09c933153da9d9c94130a54d5cc0c68c2af1d403da",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/moon.svg"
+    },
+    {
+      "file": "rocket.svg",
+      "sha256": "2b7887d9a5623f2e5e4a5d32716f93829d61b458e03b6eae33a6df648b9eb855",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/rocket.svg"
+    }
+  ]
+}

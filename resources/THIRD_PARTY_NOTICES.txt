@@ -1,0 +1,34 @@
+The tray wire structure widths in src/tray.h were verified against the
+ManagedShell project by the Cairo Development Team and contributors:
+https://github.com/cairoshell/ManagedShell
+src/ManagedShell.Interop/NativeMethods.Shell32.cs
+
+ManagedShell is licensed under Apache License 2.0; a copy is included in
+ManagedShell-LICENSE.txt. WindowsGoodView implements its own C++ receiver,
+validation, event handling, rendering, forwarding and lifecycle. It does not
+load or distribute the ManagedShell runtime.
+Tray mouse callback compatibility (including version 3 context-menu semantics)
+was also checked against ManagedShell.WindowsTray/NotifyIcon.cs in the same
+Apache-2.0 project. The installer is built with Inno Setup by Jordan Russell
+and Martijn Laan (https://jrsoftware.org/). Its Microsoft WebView2 bootstrapper
+is redistributed unmodified and retains Microsoft's digital signature.
+
+Microsoft WebView2 SDK 1.0.4258.31: static loader and headers are used under
+the terms reproduced in WebView2-LICENSE.txt and WebView2-NOTICE.txt.
+
+Rubik: Copyright 2015 The Rubik Project Authors
+https://github.com/googlefonts/rubik
+Onest: Copyright 2021 The Onest Project Authors
+https://github.com/simpals/onest
+Both fonts are distributed under the SIL Open Font License 1.1.
+Complete notices and licenses: Rubik-OFL.txt and Onest-OFL.txt.
+Static instances are generated from the official Google Fonts variable fonts
+using fontTools 4.60.1; see scripts/prepare_fonts.py and resources/fonts/manifest.json.
+Fonts are embedded in WindowsGoodView.exe and used privately by this process.
+
+Gamepad, rocket, compass and moon vector paths are adapted from Lucide Icons.
+https://github.com/lucide-icons/lucide
+ISC license; compass and moon retain the Feather MIT attribution as well.
+The full notices and permissions are included in Lucide-LICENSE.txt.
+The original SVGs are retained in third_party/lucide and converted to cached
+native GDI+/Direct2D cubic paths by scripts/prepare_glyph_paths.py.
