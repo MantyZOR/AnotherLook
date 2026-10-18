@@ -1,12 +1,12 @@
-# Venus Good View
+# Another Look
 
-![Venus Good View — пространство FOCUS, часы, заметка, календарь и нагрузка системы](docs/assets/preview.png)
+![Another Look — пространство FOCUS, часы, заметка, календарь и нагрузка системы](docs/assets/preview.png)
 
 **Свой рабочий стол поверх Windows.** Пространства для работы, игр и идей, спокойный фон со связями между узлами, собственные панели и виджеты.
 
 Проект вдохновлён кастомными рабочими столами **Arch Linux**, Hyprland и культурой *ricing*: когда окружение собирают под себя. Здесь та же идея свободы и минимализма, с обычными программами и играми Windows.
 
-[**Скачать 0.8.11**](https://github.com/MantyZOR/VenusGoodView/releases/tag/v0.8.11) · [Все релизы](https://github.com/MantyZOR/VenusGoodView/releases) · [Сообщить о проблеме](https://github.com/MantyZOR/VenusGoodView/issues)
+[**Скачать 0.8.11**](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.11) · [Все релизы](https://github.com/MantyZOR/AnotherLook/releases) · [Сообщить о проблеме](https://github.com/MantyZOR/AnotherLook/issues)
 
 На изображении — настоящий интерфейс 0.8.11 с демонстрационной раскладкой. Виджеты, расположение и оформление можно менять.
 
@@ -23,11 +23,11 @@
 
 ## Установить и начать
 
-1. Открой [релиз 0.8.11](https://github.com/MantyZOR/VenusGoodView/releases/tag/v0.8.11) и скачай установщик `VenusGoodView-0.8.11-Setup.exe`.
+1. Открой [релиз 0.8.11](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.11) и скачай установщик `AnotherLook-0.8.11-Setup.exe`.
 2. Установи программу и запусти её из меню «Пуск». У этой версии внутреннее имя и пункт меню пока **WindowsGoodView**.
 3. Выбери пространство, добавь виджеты и настрой панели через кнопку настроек.
 
-Для запуска из папки есть `VenusGoodView-0.8.11-Portable.zip`: распакуй архив и открой `WindowsGoodView.exe`. Индекс и настройки создаются при использовании, в архиве их нет.
+Для запуска из папки есть `AnotherLook-0.8.11-Portable.zip`: распакуй архив и открой `WindowsGoodView.exe`. Индекс и настройки создаются при использовании, в архиве их нет.
 
 Для встроенных сайтов нужен **Microsoft Edge WebView2 Runtime**. Если он отсутствует, установщик предложит его установить через интернет. Остальные части оболочки работают без встроенного браузера.
 
@@ -68,7 +68,7 @@
 
 ```mermaid
 flowchart TD
-    W[Windows 10 / 11] --> V[Venus Good View]
+    W[Windows 10 / 11] --> V[Another Look]
     V --> P[Пространства, панели и виджеты]
     V --> A[Обычные программы Windows]
     V --> S[Поиск: индекс на диске]
