@@ -1,3 +1,5 @@
+#include "branch_menu.h"
+#include "window_motion.h"
 #include "live_probe.h"
 #include "design.h"
 #include "orbit_layout.h"
@@ -110,6 +112,7 @@ void RoundFill(HDC dc,RECT r,COLORREF fill,int radius,COLORREF border){
     Gdiplus::Pen pen(ink(border==CLR_INVALID?fill:border),1);graphics.DrawPath(&pen,&path);
 }
 void RoundWindow(HWND window,int radius){
+    if(WindowMotionActive(window)){SetPropW(window,L"GoodView.MotionRadius",reinterpret_cast<HANDLE>(static_cast<INT_PTR>(radius)+1));return;}
     RECT r{};if(!GetClientRect(window,&r))return;UINT dpi=GetDpiForWindow(window);int round=MulDiv(radius*2,dpi,96);
     HRGN next=radius>0?CreateRoundRectRgn(0,0,r.right+1,r.bottom+1,round,round):CreateRectRgn(0,0,r.right,r.bottom);if(!next)return;
     HRGN current=CreateRectRgn(0,0,0,0);bool same=current&&GetWindowRgn(window,current)!=ERROR&&EqualRgn(current,next);if(current)DeleteObject(current);
@@ -263,5 +266,5 @@ LRESULT CALLBACK MenuProc(HWND h,UINT m,WPARAM w,LPARAM l){auto* s=reinterpret_c
     if(m==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE)s->done=true;if(m==WM_CLOSE||m==WM_CANCELMODE)s->done=true;return DefWindowProcW(h,m,w,l);
 }
 }
-UINT StyledMenu(HMENU menu,HWND owner,POINT point){MenuState s;s.owner=owner;s.anchor=point;s.stack.push_back(menu);WNDCLASSW cls{};cls.lpfnWndProc=MenuProc;cls.hInstance=GetModuleHandleW(nullptr);cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);cls.lpszClassName=L"GoodView.Menu";RegisterClassW(&cls);s.window=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cls.lpszClassName,L"GoodView — меню",WS_POPUP,point.x,point.y,500,100,owner,nullptr,cls.hInstance,&s);if(!s.window)return 0;s.dpi=GetDpiForWindow(s.window);s.font=UiFont(15,s.dpi);s.Load();ShowWindow(s.window,SW_SHOWNORMAL);SetForegroundWindow(s.window);SetFocus(s.window);SetCapture(s.window);MSG msg{};while(!s.done&&IsWindow(s.window)){BOOL result=GetMessageW(&msg,nullptr,0,0);if(result<=0){if(result==0)PostQuitMessage(static_cast<int>(msg.wParam));break;}if(HandleExitShortcut(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}if(GetCapture()==s.window)ReleaseCapture();DestroyWindow(s.window);DeleteObject(s.font);return s.result;}
+UINT StyledMenu(HMENU menu,HWND owner,POINT point){UINT branchResult=0;if(TryBranchMenu(menu,owner,point,branchResult))return branchResult;MenuState s;s.owner=owner;s.anchor=point;s.stack.push_back(menu);WNDCLASSW cls{};cls.lpfnWndProc=MenuProc;cls.hInstance=GetModuleHandleW(nullptr);cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);cls.lpszClassName=L"GoodView.Menu";RegisterClassW(&cls);s.window=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cls.lpszClassName,L"GoodView — меню",WS_POPUP,point.x,point.y,500,100,owner,nullptr,cls.hInstance,&s);if(!s.window)return 0;s.dpi=GetDpiForWindow(s.window);s.font=UiFont(15,s.dpi);s.Load();if(MenuMotionEnabled())ShowBlueprintWindow(s.window,SW_SHOWNORMAL);else ShowWindow(s.window,SW_SHOWNORMAL);SetForegroundWindow(s.window);SetFocus(s.window);SetCapture(s.window);MSG msg{};while(!s.done&&IsWindow(s.window)){BOOL result=GetMessageW(&msg,nullptr,0,0);if(result<=0){if(result==0)PostQuitMessage(static_cast<int>(msg.wParam));break;}if(HandleExitShortcut(msg))continue;TranslateMessage(&msg);DispatchMessageW(&msg);}if(GetCapture()==s.window)ReleaseCapture();DestroyWindow(s.window);DeleteObject(s.font);return s.result;}
 }

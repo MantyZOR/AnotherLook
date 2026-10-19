@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "design.h"
 #include <commctrl.h>
 #include <shobjidl.h>
@@ -44,7 +45,7 @@ struct IconPicker {
 }
 bool ChooseSpaceIcon(HWND owner,std::wstring& key){
     IconPicker s;s.owner=owner;s.key=key;WNDCLASSW cls{};cls.lpfnWndProc=IconPicker::Proc;cls.hInstance=GetModuleHandleW(nullptr);cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);cls.lpszClassName=L"GoodView.SpaceIcons";RegisterClassW(&cls);
-    HWND h=CreateWindowExW(WS_EX_TOOLWINDOW,cls.lpszClassName,L"Значок пространства",WS_POPUP|WS_CLIPCHILDREN,0,0,538,444,owner,nullptr,cls.hInstance,&s);if(!h)return false;EnableWindow(owner,FALSE);ShowWindow(h,SW_SHOW);SetForegroundWindow(h);int selected=0;for(size_t i=0;i<SpaceIcons().size();++i)if(key==SpaceIcons()[i].key)selected=static_cast<int>(i);SetFocus(GetDlgItem(h,100+selected));
+    HWND h=CreateWindowExW(WS_EX_TOOLWINDOW,cls.lpszClassName,L"Значок пространства",WS_POPUP|WS_CLIPCHILDREN,0,0,538,444,owner,nullptr,cls.hInstance,&s);if(!h)return false;EnableWindow(owner,FALSE);ShowBlueprintWindow(h,SW_SHOW);SetForegroundWindow(h);int selected=0;for(size_t i=0;i<SpaceIcons().size();++i)if(key==SpaceIcons()[i].key)selected=static_cast<int>(i);SetFocus(GetDlgItem(h,100+selected));
     MSG msg;while(IsWindow(h)){auto result=GetMessageW(&msg,nullptr,0,0);if(result<=0){if(!result)PostQuitMessage(static_cast<int>(msg.wParam));DestroyWindow(h);break;}if(HandleExitShortcut(msg))continue;if(msg.message==WM_KEYDOWN&&msg.wParam==VK_ESCAPE){DestroyWindow(h);break;}if(!IsDialogMessageW(h,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
     EnableWindow(owner,TRUE);if(IsWindowVisible(owner))SetForegroundWindow(owner);DeleteObject(s.font);DeleteObject(s.heading);if(s.saved)key=s.key;return s.saved;
 }

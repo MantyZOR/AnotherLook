@@ -23,7 +23,7 @@ struct InteractionProbe {
     static LRESULT CALLBACK TraceCloseMenu(int code,WPARAM w,LPARAM l){
         if(code==HC_ACTION&&current&&current->closeWindowMenu){
             const auto& message=*reinterpret_cast<CWPSTRUCT*>(l);wchar_t cls[128]{};GetClassNameW(message.hwnd,cls,128);
-            if(std::wstring_view(cls)==L"GoodView.Menu"&&(message.message==WM_ACTIVATE||message.message==WM_SETFOCUS||message.message==WM_KILLFOCUS||message.message==WM_CANCELMODE||message.message==WM_CLOSE||message.message==WM_SHOWWINDOW||message.message==WM_DESTROY||message.message==WM_KEYDOWN)){
+            if((std::wstring_view(cls)==L"GoodView.Menu"||std::wstring_view(cls)==L"GoodView.BranchMenu")&&(message.message==WM_ACTIVATE||message.message==WM_SETFOCUS||message.message==WM_KILLFOCUS||message.message==WM_CANCELMODE||message.message==WM_CLOSE||message.message==WM_SHOWWINDOW||message.message==WM_DESTROY||message.message==WM_KEYDOWN)){
                 json::JsonObject event;event.SetNamedValue(L"message",json::JsonValue::CreateNumberValue(message.message));event.SetNamedValue(L"wParam",json::JsonValue::CreateNumberValue(static_cast<double>(message.wParam)));
                 DWORD foreground=0;GetWindowThreadProcessId(GetForegroundWindow(),&foreground);event.SetNamedValue(L"foregroundPid",json::JsonValue::CreateNumberValue(foreground));
                 if(message.message==WM_ACTIVATE||message.message==WM_KILLFOCUS){wchar_t next[128]{};auto target=reinterpret_cast<HWND>(message.message==WM_ACTIVATE?message.lParam:message.wParam);GetClassNameW(target,next,128);DWORD pid=0;GetWindowThreadProcessId(target,&pid);event.SetNamedValue(L"nextClass",json::JsonValue::CreateStringValue(next));event.SetNamedValue(L"nextPid",json::JsonValue::CreateNumberValue(pid));}
@@ -45,7 +45,7 @@ struct InteractionProbe {
     }
     void Check(bool ok,const wchar_t* name){AuditVisibleWindows();json::JsonObject item;item.SetNamedValue(L"name",json::JsonValue::CreateStringValue(name));item.SetNamedValue(L"passed",json::JsonValue::CreateBooleanValue(ok));checks.Append(item);passed&=ok;}
     static void CALLBACK MenuTimer(HWND window,UINT,UINT_PTR timer,DWORD){
-        KillTimer(window,timer);HWND menu=FindWindowW(L"GoodView.Menu",nullptr);
+        KillTimer(window,timer);HWND menu=FindWindowW(L"GoodView.BranchMenu",nullptr);if(!menu)menu=FindWindowW(L"GoodView.Menu",nullptr);
         DWORD pid=0;GetWindowThreadProcessId(menu,&pid);
         if(current){current->menuStayed=menu&&pid==GetCurrentProcessId()&&IsWindowVisible(menu);current->launcherStayed=current->app.launcher.Visible();}
         if(menu&&pid==GetCurrentProcessId()){if(current&&(current->closeWindowMenu||current->chooseCatalog)){for(int i=0;i<3;++i)SendMessageW(menu,WM_KEYDOWN,VK_DOWN,0);SendMessageW(menu,WM_KEYDOWN,VK_RETURN,0);}else PostMessageW(menu,WM_KEYDOWN,VK_ESCAPE,0);}

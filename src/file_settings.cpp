@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "ui.h"
 #include <shobjidl.h>
 #include <algorithm>
@@ -24,7 +25,7 @@ void FileSearchSettings::Show(HWND owner){
         auto button=[&](int id,const wchar_t* text){HWND child=CreateWindowW(L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,window_,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),cls.hInstance,nullptr);SendMessageW(child,WM_SETFONT,reinterpret_cast<WPARAM>(font_),FALSE);StyleUiButton(child);};
         button(IDCANCEL,L"Закрыть");button(1,L"Поиск включён");button(9,L"Пауза");button(3,L"Пересоздать индекс");button(10,L"Подключить MFT");button(4,L"Добавить папку");button(5,L"Все локальные диски");button(6,L"Убрать папку");button(7,L"Назад");button(8,L"Дальше");
         for(int i=0;i<6;++i)button(100+i,L"");const wchar_t* depths[]={L"Без вложений",L"1 уровень",L"2 уровня",L"3 уровня",L"Без ограничений"};for(int i=0;i<5;++i)button(20+i,depths[i]);
-    }Refresh();ShowWindow(window_,SW_SHOWNORMAL);SetForegroundWindow(window_);SetFocus(GetDlgItem(window_,IDCANCEL));
+    }Refresh();ShowBlueprintWindow(window_,SW_SHOWNORMAL);SetForegroundWindow(window_);SetFocus(GetDlgItem(window_,IDCANCEL));
 }
 void FileSearchSettings::Refresh(){if(!window_)return;roots_=FileIndex::Roots(app_.config.files);selected_=std::clamp(selected_,0,std::max(0,static_cast<int>(roots_.size())-1));page_=std::clamp(page_,0,std::max(0,(static_cast<int>(roots_.size())-1)/6));RECT client;GetClientRect(window_,&client);int desired=static_cast<int>((840-(6-std::clamp(static_cast<int>(roots_.size()),1,6))*44)*client.right/1060.f);if(client.bottom!=desired){auto rect=CenteredWindow(window_,client.right,desired);SetWindowPos(window_,nullptr,rect.left,rect.top,rect.right-rect.left,rect.bottom-rect.top,SWP_NOZORDER|SWP_NOACTIVATE);}Layout();InvalidateRect(window_,nullptr,FALSE);}
 void FileSearchSettings::Layout(){

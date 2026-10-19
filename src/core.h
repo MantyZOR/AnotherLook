@@ -77,6 +77,8 @@ struct Config {
         float barRadius=18,railRadius=18,dockRadius=18,trayRadius=18,searchRadius=22,settingsRadius=18,cardRadius=18;
         float windowRadius=20;
         bool railOrbit=false;
+        std::wstring menuMotion=L"constellation";
+        bool windowMotion=true;
     } ui;
     struct FileRoot {std::wstring path;int depth=-1;};
     struct FileSearch {bool initialized=false,enabled=false,paused=false,allFixedDrives=true,fastNtfs=false;std::vector<FileRoot> roots;} files;

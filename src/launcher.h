@@ -33,7 +33,6 @@ private:
     std::vector<FileHit> fileResults_;
     void IndexLoop();void RequestRefresh();void Learn(const Program& program);void PublishIndex(const std::vector<Program>& programs);
     void Create(bool index=true);void Filter();void Execute(bool pin);void Browse();void Actions();void Layout();void Fonts(UINT dpi);
-    DWORD OpeningAnimation()const;
     std::optional<Program> Selected()const;
     void PaintFrame(HDC dc,RECT client);void DrawResult(HDC dc,RECT row,const Program& program,bool selected);
     void DrawCommand(const DRAWITEMSTRUCT& item);

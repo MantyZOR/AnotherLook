@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "ui.h"
 #include <algorithm>
 #include <windowsx.h>
@@ -37,17 +38,17 @@ struct DesktopRegressionProbe {
         struct Placement {const wchar_t* position;float x,y;DWORD direction;};
         for(auto placement:{Placement{L"top",.5f,0,AW_VER_POSITIVE},Placement{L"bottom",.5f,1,AW_VER_NEGATIVE},Placement{L"left",0,.5f,AW_HOR_POSITIVE},Placement{L"right",1,.5f,AW_HOR_NEGATIVE},Placement{L"custom",.5f,.1f,AW_VER_POSITIVE},Placement{L"custom",.5f,.9f,AW_VER_NEGATIVE},Placement{L"custom",.05f,.4f,AW_HOR_POSITIVE},Placement{L"custom",.95f,.6f,AW_HOR_NEGATIVE}}){
             auto& ui=app.config.ui;ui.searchPosition=placement.position;ui.searchX=placement.x;ui.searchY=placement.y;
-            Check(launcher.OpeningAnimation()==(AW_SLIDE|placement.direction),L"search slides from its configured edge, including manually placed blocks");
-            launcher.Hide();auto openingStarted=GetTickCount64();launcher.Show();auto openingElapsed=GetTickCount64()-openingStarted;
+            launcher.Hide();launcher.Show();
             BOOL animations=TRUE;SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION,0,&animations,0);
-            if(animations&&!GetSystemMetrics(SM_REMOTESESSION))Check(openingElapsed>=100,L"the real native opening animation runs instead of silently falling back to an instant show");
+            if(animations&&!GetSystemMetrics(SM_REMOTESESSION)&&app.config.ui.windowMotion)Check(WindowMotionActive(launcher.window_),L"search uses the shared nonblocking blueprint reveal");
+            PumpFor(WindowMotionDuration+80);Check(!WindowMotionActive(launcher.window_),L"the search reveal stops and restores its full region");
             RECT actual{};GetWindowRect(launcher.window_,&actual);MONITORINFO monitor{sizeof(monitor)};GetMonitorInfoW(MonitorFromWindow(launcher.window_,MONITOR_DEFAULTTONEAREST),&monitor);
             float scale=GetDpiForWindow(launcher.window_)/96.f;auto bounds=monitor.rcMonitor;auto target=LauncherBox(ui,{0,0,(bounds.right-bounds.left)/scale,(bounds.bottom-bounds.top)/scale});
             Check(launcher.Visible()&&GetFocus()==launcher.search_&&actual.left==bounds.left+static_cast<int>(target.x*scale)&&actual.top==bounds.top+static_cast<int>(target.y*scale),L"opening animation ends at the saved position with the search field ready for typing");
             HRGN region=CreateRectRgn(0,0,0,0);RECT clip{};GetWindowRgn(launcher.window_,region);GetRgnBox(region,&clip);DeleteObject(region);
-            Check(clip.right>=actual.right-actual.left-1&&clip.bottom>=actual.bottom-actual.top-1,L"a completed slide leaves the entire rounded search window visible");
+            Check(clip.right>=actual.right-actual.left-1&&clip.bottom>=actual.bottom-actual.top-1,L"a completed reveal leaves the entire rounded search window visible");
         }
-        app.config.ui.searchPosition=L"center";Check(launcher.OpeningAnimation()==AW_BLEND,L"a centered search uses a neutral fade");
+        app.config.ui.searchPosition=L"center";
         launcher.Hide();app.config.ui=saved;launcher.UpdateStyle();
     }
     void WinReturnChecks(HWND fixture){

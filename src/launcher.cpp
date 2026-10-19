@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "launcher.h"
 #include "ui.h"
 #include "app_index.h"
@@ -113,21 +114,8 @@ void Launcher::Layout(){
     place(list_,layout.results);place(GetDlgItem(window_,IDOK),layout.open);place(GetDlgItem(window_,ActionsId),layout.actions);place(GetDlgItem(window_,IDCANCEL),layout.close);
     RoundWindow(window_,static_cast<int>(UiRadius(app_.config.ui,UiElement::Search)));InvalidateRect(window_,nullptr,FALSE);
 }
-DWORD Launcher::OpeningAnimation()const{
-    const auto& ui=app_.config.ui;auto position=ui.searchPosition;
-    if(position==L"custom"){
-        float x=ui.searchX-.5f,y=ui.searchY-.5f;
-        if(std::abs(x)<.08f&&std::abs(y)<.08f)return AW_BLEND;
-        position=std::abs(y)>=std::abs(x)?(y<0?L"top":L"bottom"):(x<0?L"left":L"right");
-    }
-    if(position==L"top")return AW_SLIDE|AW_VER_POSITIVE;
-    if(position==L"bottom")return AW_SLIDE|AW_VER_NEGATIVE;
-    if(position==L"left")return AW_SLIDE|AW_HOR_POSITIVE;
-    if(position==L"right")return AW_SLIDE|AW_HOR_NEGATIVE;
-    return AW_BLEND;
-}
 void Launcher::Show(bool addToDesktop,int monitor){
-    bool opening=!Visible();
+
     addToDesktop_=addToDesktop;addMonitor_=monitor;Create();UpdateStyle();app_.CancelProgramActivation();status_.clear();launching_=false;running_=ListAppWindows(true);
     lastQuery_.clear();for(const auto& window:running_)if(!window.process.empty())Learn({fs::path(window.imageName).stem().wstring(),window.process});if(indexWake_)SetEvent(indexWake_);
     SetWindowTextW(window_,addToDesktop_?L"GoodView — добавить приложение":L"GoodView — приложения");SetWindowTextW(GetDlgItem(window_,IDOK),addToDesktop_?L"Добавить":L"Открыть");
@@ -135,11 +123,8 @@ void Launcher::Show(bool addToDesktop,int monitor){
     UINT dpi=GetDpiForWindow(window_);auto b=info.rcMonitor;float scale=dpi/96.f;auto box=LauncherBox(app_.config.ui,{0,0,(b.right-b.left)/scale,(b.bottom-b.top)/scale});int x=b.left+static_cast<int>(box.x*scale),y=b.top+static_cast<int>(box.y*scale),width=static_cast<int>(box.w*scale),height=static_cast<int>(box.h*scale);Fonts(dpi);
     SetWindowPos(window_,HWND_TOPMOST,x,y,width,height,SWP_NOACTIVATE|SWP_NOOWNERZORDER);
     SetWindowTextW(search_,L"");Filter();Layout();
-    BOOL animations=TRUE;SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION,0,&animations,0);
-    // Windows animates this one native popup, including its child controls.
-    // No render thread, repeating timer or retained screenshot is needed.
-    if(!opening||!animations||GetSystemMetrics(SM_REMOTESESSION)||!AnimateWindow(window_,160,OpeningAnimation()|AW_ACTIVATE))ShowWindow(window_,SW_SHOW);
-    Layout();SetForegroundWindow(window_);SetFocus(search_);
+    ShowBlueprintWindow(window_,SW_SHOW);
+    SetForegroundWindow(window_);SetFocus(search_);
 }
 void Launcher::Hide(){app_.fileIndex.Query(L"");fileResults_.clear();if(window_)ShowWindow(window_,SW_HIDE);}
 void Launcher::Toggle(){if(Visible())Hide();else Show();}

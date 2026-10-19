@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "ui.h"
 #include <algorithm>
 namespace gv {
@@ -31,10 +32,10 @@ void Surface::SceneMenu(const std::wstring& id){
 }
 void Surface::ShowSettings(){
     HMENU menu=CreatePopupMenu();AppendMenuW(menu,MF_STRING,1,app_.config.enabled?L"Вернуться к рабочему столу Windows":L"Включить оболочку");AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING,20,L"Расположение и вид интерфейса");AppendMenuW(menu,MF_STRING,21,L"Оформление пространства");AppendMenuW(menu,MF_STRING,22,L"Индекс файлов");
+    AppendMenuW(menu,MF_STRING,20,L"Расположение и вид интерфейса");AppendMenuW(menu,MF_STRING,21,L"Оформление пространства");AppendMenuW(menu,MF_STRING,22,L"Индекс файлов");AppendMenuW(menu,MF_STRING,23,L"Движение интерфейса");
     AppendMenuW(menu,MF_STRING|(IsAutoStartEnabled()?MF_CHECKED:0),2,L"Запускать вместе с Windows");AppendMenuW(menu,MF_STRING|(app_.config.wallpaperEnabled?MF_CHECKED:0),3,L"Фон пространства");AppendMenuW(menu,MF_STRING,4,L"Сохранить расположение окон");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,5,L"Активность встроенных сайтов");AppendMenuW(menu,MF_STRING,6,L"Горячие клавиши");AppendMenuW(menu,MF_STRING,7,L"Закрыть встроенные сайты");AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,8,L"Завершить WindowsGoodView");
-    Popup(menu,[this](UINT id){switch(id){case 1:if(app_.config.enabled)app_.Pause();else app_.Enable();break;case 2:app_.ToggleStartup();break;case 3:app_.config.wallpaperEnabled=!app_.config.wallpaperEnabled;app_.Refresh();app_.SaveSoon();break;case 4:app_.windows.Capture();app_.Save();break;case 5:ShowActivity();break;case 6:ShowNotice(hwnd,L"Горячие клавиши",L"Ctrl + Q: завершить GoodView\nCtrl + Alt + 1…4 — пространства\nCtrl + Alt + Space — поиск приложений\nCtrl + Alt + D — показать полотно\nCtrl + Alt + A — подключить активное окно\nCtrl + Alt + Shift + Space — вернуться в Windows\n\nCtrl + колесо — масштаб полотна\nКолесо — прокрутка, Shift — по горизонтали\nСредняя кнопка — перемещение полотна\nShift + выбор, Ctrl + G — группа карточек");break;case 7:app_.web.CloseAll();break;case 8:app_.Quit();break;case 20:Customize();break;case 21:ThemeMenu();break;case 22:app_.fileSettings.Show(hwnd);break;}});
+    Popup(menu,[this](UINT id){switch(id){case 1:if(app_.config.enabled)app_.Pause();else app_.Enable();break;case 2:app_.ToggleStartup();break;case 3:app_.config.wallpaperEnabled=!app_.config.wallpaperEnabled;app_.Refresh();app_.SaveSoon();break;case 4:app_.windows.Capture();app_.Save();break;case 5:ShowActivity();break;case 6:ShowNotice(hwnd,L"Горячие клавиши",L"Ctrl + Q: завершить GoodView\nCtrl + Alt + 1…4 — пространства\nCtrl + Alt + Space — поиск приложений\nCtrl + Alt + D — показать полотно\nCtrl + Alt + A — подключить активное окно\nCtrl + Alt + Shift + Space — вернуться в Windows\n\nCtrl + колесо — масштаб полотна\nКолесо — прокрутка, Shift — по горизонтали\nСредняя кнопка — перемещение полотна\nShift + выбор, Ctrl + G — группа карточек");break;case 7:app_.web.CloseAll();break;case 8:app_.Quit();break;case 20:Customize();break;case 21:ThemeMenu();break;case 22:app_.fileSettings.Show(hwnd);break;case 23:EditMotionPreferences(hwnd);break;}});
 }
 void Surface::Customize(){app_.customization.Show(hwnd);}
 void Surface::ThemeMenu(){app_.customization.Show(hwnd,true);}

@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "web.h"
 #include <wrl/event.h>
 #include <algorithm>
@@ -97,7 +98,7 @@ void WebManager::Open(const Card& card,const std::wstring& scene,HWND parent,REC
     s->bounds=bounds;s->parent=parent;s->visible=true;
     if(standalone&&!s->detached){WNDCLASSW wc{};wc.lpfnWndProc=SiteProc;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"GoodView.Web";wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hbrBackground=static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));RegisterClassW(&wc);
       HWND window=CreateWindowExW(0,wc.lpszClassName,card.title.c_str(),WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,1100,740,nullptr,nullptr,wc.hInstance,s.get());
-      if(window){s->parent=window;s->detached=true;GetClientRect(window,&s->bounds);ShowWindow(window,SW_SHOW);}
+      if(window){s->parent=window;s->detached=true;GetClientRect(window,&s->bounds);ShowBlueprintWindow(window,SW_SHOW);}
     }
 #ifdef GOODVIEW_WEBVIEW2
     if(s->controller){s->controller->put_ParentWindow(s->parent);s->controller->put_Bounds(s->bounds);s->controller->put_IsVisible(TRUE);Notify();return;}

@@ -7,6 +7,7 @@
 | Пространства и настройки | `src/core.*`, `src/scene_actions.cpp`, `src/profile.cpp` | Карточки, оформление, позиции, сохранение профиля |
 | Полотно и панели | `src/ui.*`, `src/surface.cpp`, `src/desktop_paint.cpp` | Окна оболочки и отрисовка |
 | Кольцо окон | `src/orbit.cpp`, `src/orbit_raster.cpp`, `src/orbit_layout.h` | Сегменты, прокрутка, наведение и выбор окна |
+| Появление окон и меню | `src/window_motion.*`, `src/branch_menu.*` | Общий переход окон, компактные меню, готовые изображения действий и короткие таймеры |
 | Виджеты | `src/widgets.cpp`, `src/system_load.cpp` | Заметки, часы, календарь и общие образцы нагрузки системы |
 | Программы и файлы | `src/launcher.cpp`, `src/app_index.cpp`, `src/file_index.cpp`, `src/ntfs*` | Поиск, каталог программ, дисковая база и чтение NTFS |
 | Фоновые приложения | `src/tray.*`, `src/tray_import.cpp`, `src/tray_system.cpp` | Значки системного трея и передача команд программам |

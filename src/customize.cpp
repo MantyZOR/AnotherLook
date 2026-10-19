@@ -1,3 +1,4 @@
+#include "window_motion.h"
 #include "ui.h"
 #include <windowsx.h>
 #include <commctrl.h>
@@ -22,7 +23,7 @@ void Customization::Show(HWND owner,bool appearance){
         window_=CreateWindowExW(app_.preview?WS_EX_APPWINDOW:WS_EX_TOOLWINDOW,cls.lpszClassName,L"GoodView — настройка интерфейса",WS_POPUP|WS_THICKFRAME|WS_CLIPCHILDREN,rect.left,rect.top,rect.right-rect.left,rect.bottom-rect.top,nullptr,nullptr,cls.hInstance,this);
         if(!window_)return;UINT dpi=GetDpiForWindow(window_);font_=UiFont(15,dpi);title_=UiFont(24,dpi,FW_SEMIBOLD);small_=UiFont(14,dpi,FW_NORMAL,FontRole::Body);mini_=UiFont(12,dpi);background_=CreateSolidBrush(UiTheme().panel);
         auto button=[&](int id,const wchar_t* caption){HWND child=CreateWindowW(L"BUTTON",caption,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,window_,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),cls.hInstance,nullptr);SendMessageW(child,WM_SETFONT,reinterpret_cast<WPARAM>(font_),FALSE);StyleUiButton(child,UiTheme().panel);};
-        button(IDCANCEL,L"Закрыть");button(10,L"Расположение");button(11,L"Оформление");button(30,L"Экран 1");
+        button(360,L"Движение интерфейса");button(IDCANCEL,L"Закрыть");button(10,L"Расположение");button(11,L"Оформление");button(30,L"Экран 1");
         button(100,L"Среда");button(101,L"Окна");button(102,L"Действия");button(103,L"Фоновые");button(104,L"Поиск");button(105,L"Настройки");button(106,L"Питание");
         button(200,L"Горизонталь");button(201,L"Вертикаль");button(210,L"Сверху");button(211,L"Снизу");button(212,L"Слева");button(213,L"Справа");button(214,L"В центре");button(220,L"Показывать элемент");
         button(228,L"Вид панели окон");button(225,L"Подписи открытых программ");button(226,L"Компактные ярлыки");button(227,L"Индикатор сайтов");
@@ -33,7 +34,7 @@ void Customization::Show(HWND owner,bool appearance){
         const wchar_t* themes[]={L"Шалфей",L"Синий час",L"Песок",L"Сирень",L"Терракота",L"Мята",L"Янтарь",L"Полночь",L"Лес",L"Роза"};for(int i=0;i<10;++i)button(310+i,themes[i]);
         BOOL dark=!UiTheme().light;DwmSetWindowAttribute(window_,20,&dark,sizeof(dark));DWMNCRENDERINGPOLICY nc=DWMNCRP_DISABLED;DwmSetWindowAttribute(window_,DWMWA_NCRENDERING_POLICY,&nc,sizeof(nc));
     }
-    Layout();if(!appearance_)CapturePreviewIcons();ShowWindow(window_,SW_SHOWNORMAL);SetForegroundWindow(window_);SetFocus(GetDlgItem(window_,appearance_?11:10));app_.SyncPanels();
+    Layout();if(!appearance_)CapturePreviewIcons();ShowBlueprintWindow(window_,SW_SHOWNORMAL);SetForegroundWindow(window_);SetFocus(GetDlgItem(window_,appearance_?11:10));app_.SyncPanels();
 }
 void Customization::CapturePreviewIcons(){
     // Reuse cached images only while this editor is open; no preview polling.
@@ -77,7 +78,7 @@ void Customization::Refresh(){if(window_){Layout();InvalidateRect(window_,nullpt
 void Customization::Layout(){
     if(!window_)return;RECT client;GetClientRect(window_,&client);float factor=std::min(client.right/1100.f,client.bottom/780.f);auto U=[&](auto value){return static_cast<int>(std::lround(static_cast<float>(value)*factor));};
     auto place=[&](int id,int x,int y,int w,int h,bool visible=true){HWND child=GetDlgItem(window_,id);ShowWindow(child,visible?SW_SHOWNOACTIVATE:SW_HIDE);SetWindowPos(child,nullptr,U(x),U(y),U(w),U(h),SWP_NOZORDER|SWP_NOACTIVATE);};
-    place(IDCANCEL,936,28,132,42);place(304,732,104,336,44,appearance_);place(10,32,104,172,44);place(11,216,104,172,44);place(30,552,104,140,44,!appearance_&&app_.monitors.size()>1);
+    place(360,696,28,228,42);place(IDCANCEL,936,28,132,42);place(304,732,104,336,44,appearance_);place(10,32,104,172,44);place(11,216,104,172,44);place(30,552,104,140,44,!appearance_&&app_.monitors.size()>1);
     for(int i=0;i<7;++i)place(100+i,32+i*95,166,89,38,!appearance_);
     place(200,732,250,160,38,!appearance_);place(201,902,250,166,38,!appearance_);
     for(int i=0;i<4;++i)place(210+i,732+(i%2)*172,332+(i/2)*48,164,38,!appearance_);
@@ -102,8 +103,8 @@ void Customization::Layout(){
 void Customization::Draw(HDC dc,RECT client){
     FillRect(dc,&client,background_);RoundFill(dc,client,UiTheme().panel,MulDiv(static_cast<int>(app_.config.ui.windowRadius),GetDpiForWindow(window_),96),UiTheme().border);float factor=std::min(client.right/1100.f,client.bottom/780.f);auto U=[&](float value){return static_cast<LONG>(std::lround(value*factor));};
     auto text=[&](const std::wstring& value,RECT rect,HFONT font,COLORREF color,UINT flags=DT_SINGLELINE){auto old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,color);DrawTextW(dc,value.c_str(),-1,&rect,flags);SelectObject(dc,old);};
-    text(L"Настройка интерфейса",{U(32),U(24),U(900),U(66)},title_,UiTheme().text);
-    text(L"Твоё пространство. Изменения сохраняются автоматически.",{U(34),U(70),U(900),U(96)},font_,UiTheme().muted);
+    text(L"Настройка интерфейса",{U(32),U(24),U(680),U(66)},title_,UiTheme().text);
+    text(L"Твоё пространство. Изменения сохраняются автоматически.",{U(34),U(70),U(680),U(96)},font_,UiTheme().muted);
     RoundFill(dc,{U(712),U(164),U(1080),U(744)},UiTheme().card,U(16));
     if(!appearance_){
         text(ElementName(selected_),{U(732),U(184),U(1068),U(214)},font_,UiTheme().text);
@@ -142,6 +143,7 @@ void Customization::Draw(HDC dc,RECT client){
 void Customization::Apply(){app_.ApplyInterface();}
 void Customization::Command(int id){
     auto& ui=app_.config.ui;
+    if(id==360){EditMotionPreferences(window_);return;}
     if(id==IDCANCEL){Close();return;}if(id==10||id==11){appearance_=id==11;if(!appearance_&&windowIcons_.empty())CapturePreviewIcons();Refresh();return;}
     if(id==30){monitor_=(monitor_+1)%std::max(1,static_cast<int>(app_.monitors.size()));CapturePreviewIcons();Refresh();return;}
     if(id>=100&&id<=106){selected_=static_cast<UiElement>(id-100);Refresh();return;}
@@ -154,7 +156,7 @@ void Customization::Command(int id){
     else if(id>=270&&id<=274){const float radii[]={0,8,16,24,32};ui.cardRadius=radii[id-270];}
     else if(id>=280&&id<=284){const float radii[]={0,8,16,24,32};ui.windowRadius=radii[id-280];}
     else if(id==241){HMENU menu=CreatePopupMenu();AppendMenuW(menu,MF_STRING,1,L"Поиск сверху");AppendMenuW(menu,MF_STRING,2,L"Поиск снизу");AppendMenuW(menu,MF_STRING,3,L"Боковой поиск");RECT rect;GetWindowRect(GetDlgItem(window_,241),&rect);auto choice=StyledMenu(menu,window_,{rect.left,rect.bottom});DestroyMenu(menu);if(!choice)return;ui.barPosition=L"top";ui.barVertical=false;ui.railPosition=choice==3?L"right":L"left";ui.railVertical=true;ui.dockPosition=L"custom";ui.dockX=0;ui.dockY=1;ui.dockVertical=false;ui.trayPosition=L"right";ui.trayVertical=false;ui.settingsPosition=L"custom";ui.settingsX=1;ui.settingsY=0;ui.searchPosition=choice==2?L"bottom":L"custom";ui.searchVertical=false;ui.searchX=choice==3?0:.5f;ui.searchY=.09f;}
-    else if(id==240){auto old=ui;ui=Config::Interface{};ui.textScale=old.textScale;ui.railLabels=old.railLabels;ui.railOrbit=old.railOrbit;ui.compactLaunchers=old.compactLaunchers;ui.cardRadius=old.cardRadius;ui.windowRadius=old.windowRadius;}
+    else if(id==240){auto old=ui;ui=Config::Interface{};ui.textScale=old.textScale;ui.railLabels=old.railLabels;ui.railOrbit=old.railOrbit;ui.compactLaunchers=old.compactLaunchers;ui.cardRadius=old.cardRadius;ui.windowRadius=old.windowRadius;ui.menuMotion=old.menuMotion;ui.windowMotion=old.windowMotion;}
     else if(id>=320&&id<=322){const wchar_t* modes[]={L"dark",L"warm",L"cool"};app_.Active().appearance=modes[id-320];if(background_)DeleteObject(background_);background_=CreateSolidBrush(UiTheme().panel);Apply();return;}else if(id>=310&&id<320){app_.SetTheme(id-310);Refresh();return;}
     else if(id==300){app_.ChangeWallpaper();Refresh();return;}
     else if(id==301){Card card;card.type=L"scene";card.title=app_.Active().name;card.content=app_.Active().description;if(EditDialog(window_,card,L"Пространство")){app_.Active().name=card.title;app_.Active().description=card.content;app_.SaveSoon();app_.Refresh();}Refresh();return;}
