@@ -50,7 +50,7 @@ void Surface::Place(bool previewMode){if(monitor>=static_cast<int>(app_.monitors
 }
 void Surface::Show(bool visible,bool raise){
     (void)raise;
-    if(!visible){KillTimer(hwnd,82);networkAnimating_=false;KillTimer(hwnd,83);orbit_.Finish();orbitHover_.Reset();hover_=-1;}
+    if(!visible){KillTimer(hwnd,82);networkAnimating_=false;KillTimer(hwnd,83);orbitTimerActive_=false;orbit_.Finish();orbitHover_.Reset();hover_=-1;}
     bool wasVisible=IsWindowVisible(hwnd)!=FALSE;
     if(visible&&(bar||rail)){
         if(!wasVisible){Paint();ShowWindow(hwnd,SW_SHOWNOACTIVATE);}
@@ -65,7 +65,7 @@ void Surface::SetPanelLayer(bool topmost,HWND behind){
     SetShellPanelLayer(hwnd,topmost,behind);
 }
 void Surface::Invalidate(){if(hwnd&&!covered&&IsWindowVisible(hwnd))InvalidateRect(hwnd,nullptr,FALSE);app_.SyncSystemWidget();}
-void Surface::Discard(){networkBackdrop_.Reset();textLayouts_.clear();networkHaloBlue_.Reset();networkHaloViolet_.Reset();bitmaps_.clear();iconBitmaps_.clear();brush_.Reset();rt_.Reset();panelBitmap_.Reset();}
+void Surface::Discard(){orbitCoverage_={};std::vector<uint32_t>{}.swap(orbitBase_);orbitRasterKey_.reset();networkBackdrop_.Reset();textLayouts_.clear();networkHaloBlue_.Reset();networkHaloViolet_.Reset();bitmaps_.clear();iconBitmaps_.clear();brush_.Reset();rt_.Reset();panelBitmap_.Reset();}
 bool Surface::ExportPreview(const fs::path& path){std::error_code ec;fs::create_directories(path.parent_path(),ec);ComPtr<IWICImagingFactory>wic;if(FAILED(CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&wic))))return false;RECT r;GetClientRect(hwnd,&r);ComPtr<IWICBitmap>bitmap;if(FAILED(wic->CreateBitmap(r.right,r.bottom,GUID_WICPixelFormat32bppPBGRA,WICBitmapCacheOnLoad,&bitmap)))return false;auto p=D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_SOFTWARE,D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,D2D1_ALPHA_MODE_PREMULTIPLIED),static_cast<float>(GetDpiForWindow(hwnd)),static_cast<float>(GetDpiForWindow(hwnd)));Discard();if(FAILED(app_.d2d->CreateWicBitmapRenderTarget(bitmap.Get(),p,&rt_)))return false;rt_->CreateSolidColorBrush(Ink(UiTheme().text),&brush_);Paint();ComPtr<IWICStream>stream;ComPtr<IWICBitmapEncoder>encoder;ComPtr<IWICBitmapFrameEncode>frame;ComPtr<IWICFormatConverter>converter;bool ok=SUCCEEDED(wic->CreateStream(&stream))&&SUCCEEDED(stream->InitializeFromFilename(path.c_str(),GENERIC_WRITE))&&SUCCEEDED(wic->CreateEncoder(GUID_ContainerFormatPng,nullptr,&encoder))&&SUCCEEDED(encoder->Initialize(stream.Get(),WICBitmapEncoderNoCache))&&SUCCEEDED(encoder->CreateNewFrame(&frame,nullptr))&&SUCCEEDED(frame->Initialize(nullptr))&&SUCCEEDED(frame->SetSize(r.right,r.bottom));WICPixelFormatGUID format=GUID_WICPixelFormat32bppBGRA;if(ok)ok=SUCCEEDED(frame->SetPixelFormat(&format))&&SUCCEEDED(wic->CreateFormatConverter(&converter))&&SUCCEEDED(converter->Initialize(bitmap.Get(),format,WICBitmapDitherTypeNone,nullptr,0,WICBitmapPaletteTypeCustom))&&SUCCEEDED(frame->WriteSource(converter.Get(),nullptr))&&SUCCEEDED(frame->Commit())&&SUCCEEDED(encoder->Commit());Discard();return ok;}
 void Surface::Fill(Box b,D2D1_COLOR_F c,float radius){brush_->SetColor(c);if(radius)rt_->FillRoundedRectangle(D2D1::RoundedRect(R(b),radius,radius),brush_.Get());else rt_->FillRectangle(R(b),brush_.Get());}
 void Surface::Stroke(Box b,D2D1_COLOR_F c,float radius,float width){brush_->SetColor(c);if(radius)rt_->DrawRoundedRectangle(D2D1::RoundedRect(R(b),radius,radius),brush_.Get(),width);else rt_->DrawRectangle(R(b),brush_.Get(),width);}

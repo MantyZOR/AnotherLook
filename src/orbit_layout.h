@@ -29,19 +29,21 @@ class OrbitHoverMotion {
 public:
     bool Running()const{return running_;}
     float Value(int slot)const{return slot>=0&&slot<OrbitCapacity?values_[slot]:0;}
-    void Reset(){values_.fill(0);from_.fill(0);target_=-1;running_=false;}
+    void Reset(){values_.fill(0);from_.fill(0);began_.fill(0);target_=-1;running_=false;}
     bool Tick(uint64_t now){
-        if(!running_)return false;float time=std::clamp(static_cast<float>(now-began_)/140.f,0.f,1.f),ease=time*time*(3-2*time);
-        for(int i=0;i<OrbitCapacity;++i)values_[i]=from_[i]+((i==target_?1.f:0.f)-from_[i])*ease;
-        if(time>=1)running_=false;return running_;
+        if(!running_)return false;running_=false;
+        for(int i=0;i<OrbitCapacity;++i){float target=i==target_?1.f:0.f;if(values_[i]==target)continue;float time=std::clamp(static_cast<float>(now-began_[i])/140.f,0.f,1.f),ease=time*time*(3-2*time);values_[i]=time>=1?target:from_[i]+(target-from_[i])*ease;running_|=values_[i]!=target;}
+        return running_;
     }
     bool Target(int slot,uint64_t now,bool animate){
-        Tick(now);if(slot==target_)return running_;from_=values_;target_=slot;began_=now;running_=false;
-        for(int i=0;i<OrbitCapacity;++i){float target=i==slot?1.f:0.f;if(animate)running_|=values_[i]!=target;else values_[i]=target;}
+        Tick(now);if(slot==target_&&animate)return running_;int previous=target_;target_=slot;running_=false;
+        for(int i=0;i<OrbitCapacity;++i){float target=i==slot?1.f:0.f;if(!animate){values_[i]=target;continue;}if((i==previous)!=(i==slot)){from_[i]=values_[i];began_[i]=now;}running_|=values_[i]!=target;}
         return running_;
     }
 private:
-    std::array<float,OrbitCapacity> values_{},from_{};int target_=-1;uint64_t began_=0;bool running_=false;
+    // Retarget only the entering/leaving slots. Restarting every fading slot on
+    // each mouse crossing kept all nine segments animating after a quick lap.
+    std::array<float,OrbitCapacity> values_{},from_{};std::array<uint64_t,OrbitCapacity> began_{};int target_=-1;bool running_=false;
 };
 struct OrbitSlot {int before=-1,after=-1;float blend=0,x=0,y=0;};
 struct OrbitLayout {std::array<OrbitSlot,OrbitCapacity> slots{};int visible=0;};

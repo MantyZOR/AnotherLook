@@ -100,6 +100,13 @@ private:
     int orbitVisible_=0;bool orbitTimerActive_=false;
     ComPtr<ID2D1PathGeometry> orbitArc_;
     int orbitArcCount_=0;
+    struct OrbitCoverage {int x=0,y=0,w=0,h=0;std::vector<uint8_t> alpha;};
+    std::array<OrbitCoverage,OrbitCapacity> orbitCoverage_;
+    std::vector<uint32_t> orbitBase_;
+    using OrbitRasterKey=std::tuple<int,int,UINT,float,int,int,int,COLORREF,COLORREF,COLORREF,COLORREF,COLORREF>;
+    std::optional<OrbitRasterKey> orbitRasterKey_;
+    int orbitRasterPart_=0; // 0: full vector fallback, 1: coverage, 2: marks/centre.
+    bool PaintOrbitRaster(int width,int height,UINT dpi);
     void DrawNetwork(float width,float height,Box dirty={});
     void TrackNetwork(POINT point,bool leave=false);
     void TickNetwork();

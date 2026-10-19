@@ -77,7 +77,7 @@ void Surface::DrawOrbit(float width,float height){
             }
         }
     }
-    if(orbitArc_){
+    if(orbitArc_&&orbitRasterPart_!=2){
         auto panel=Ink(UiTheme().panel),accent=Ink(UiTheme().accent);
         for(int i=0;i<segments;++i){
             float amount=orbitHover_.Value(i);auto lift=LiftOrbitSegment(i,segments,amount);
@@ -92,6 +92,7 @@ void Surface::DrawOrbit(float width,float height){
         }
         rt_->SetTransform(previous);
     }
+    if(orbitRasterPart_==1)return;
     brush_->SetColor(Ink(UiTheme().border));for(int i=0;i<segments;++i){float angle=-OrbitTau/4-i*OrbitTau/segments,x=std::cos(angle),y=std::sin(angle);rt_->DrawLine(D2D1::Point2F(cx+x*100*scale,cy+y*100*scale),D2D1::Point2F(cx+x*120*scale,cy+y*120*scale),brush_.Get(),scale);}
     if(!count){GlyphIcon(Glyph::Windows,{cx-10*scale,cy+100*scale,20*scale,20*scale},Ink(UiTheme().muted));return;}
     int pages=(count+OrbitCapacity-1)/OrbitCapacity,page=1+static_cast<int>(std::ceil(orbit_.Position()/OrbitCapacity));
@@ -99,6 +100,7 @@ void Surface::DrawOrbit(float width,float height){
     // Centre the visible glyph, rather than the font's asymmetric line box.
     CachedText(number,{cx-40*scale,cy-40*scale,80*scale,80*scale},30*scale,Ink(UiTheme().text),500,false,FontRole::Interface,true,true);
     CenterText(number+L" из "+std::to_wstring(pages),{cx-70*scale,cy+23*scale,140*scale,22*scale},14*scale,Ink(UiTheme().muted));
+    if(orbitRasterPart_==2)return;
     HWND foreground=GetForegroundWindow();
     for(int i=0;i<layout.visible;++i){
         auto cell=layout.slots[i];auto lift=LiftOrbitSegment(i,layout.visible,orbitHover_.Value(i));float iconScale=scale*lift.scale,x=cx+lift.x*scale+(cell.x-140)*iconScale,y=cy+lift.y*scale+(cell.y-140)*iconScale;
