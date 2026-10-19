@@ -1,4 +1,5 @@
 #include "live_probe.h"
+#include "motion_scene.h"
 #include "ui.h"
 #include <shellapi.h>
 #include <commctrl.h>
@@ -74,7 +75,7 @@ void Application::StartGuardian(){
     auto command=L"\""+ExePath().wstring()+L"\" --guardian "+suffix+L" --data \""+dataDir.wstring()+L"\"";STARTUPINFOW start{sizeof(start)};start.dwFlags=STARTF_USESHOWWINDOW;start.wShowWindow=SW_HIDE;PROCESS_INFORMATION process{};
     if(CreateProcessW(nullptr,command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&start,&process)){CloseHandle(process.hThread);if(WaitForSingleObject(ready,2000)==WAIT_OBJECT_0)guardianProcess=process.hProcess;else{SetEvent(guardianStop);WaitForSingleObject(process.hProcess,1500);CloseHandle(process.hProcess);CloseHandle(guardianStop);guardianStop=nullptr;}}CloseHandle(ready);
 }
-int Application::Run(bool background){INITCOMMONCONTROLSEX controls{sizeof(controls),ICC_STANDARD_CLASSES};InitCommonControlsEx(&controls);WNDCLASSW c{};c.lpfnWndProc=EventProc;c.hInstance=GetModuleHandleW(nullptr);c.lpszClassName=L"GoodView.Events";RegisterClassW(&c);events=CreateWindowExW(WS_EX_TOOLWINDOW,c.lpszClassName,dataDir.c_str(),WS_POPUP,0,0,0,0,nullptr,nullptr,c.hInstance,this);
+int Application::Run(bool background){if(config.ui.windowMotion||config.ui.menuMotion!=L"none")WarmMotionDevice();INITCOMMONCONTROLSEX controls{sizeof(controls),ICC_STANDARD_CLASSES};InitCommonControlsEx(&controls);WNDCLASSW c{};c.lpfnWndProc=EventProc;c.hInstance=GetModuleHandleW(nullptr);c.lpszClassName=L"GoodView.Events";RegisterClassW(&c);events=CreateWindowExW(WS_EX_TOOLWINDOW,c.lpszClassName,dataDir.c_str(),WS_POPUP,0,0,0,0,nullptr,nullptr,c.hInstance,this);
     if(!preview&&windows.RepairSavedHelpers())Save();
     bool rescued=fs::exists(dataDir/L"rescue.flag");if(rescued){config.enabled=false;std::error_code error;fs::remove(dataDir/L"rescue.flag",error);}
     for(int i=0;i<4;++i)RegisterHotKey(events,10+i,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,'1'+i);RegisterHotKey(events,20,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,VK_SPACE);RegisterHotKey(events,22,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,'A');RegisterHotKey(events,23,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,'D');

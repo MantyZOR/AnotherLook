@@ -1,5 +1,6 @@
 #pragma once
 #include "design.h"
+#include "motion_scene.h"
 #include <memory>
 
 namespace gv {
@@ -12,6 +13,10 @@ public:
     BranchMenuRenderer();~BranchMenuRenderer();
     bool Build(HMENU menu,UINT dpi,SIZE maximum,bool back,std::wstring mode);
     bool Render(float progress,int hover=-1,int selected=-1);
+    void UpdateTargets(float progress);
+    bool Compose(MotionScene& scene,bool animated);
+    bool Highlight(MotionScene& scene,int index);
+    void Complete(MotionScene& scene);
     int Hit(POINT point)const;
     SIZE Size()const;POINT Hub()const;
     const std::vector<BranchMenuItem>& Items()const;

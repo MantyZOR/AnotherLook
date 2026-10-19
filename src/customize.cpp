@@ -194,6 +194,7 @@ LRESULT CALLBACK Customization::Proc(HWND window,UINT message,WPARAM w,LPARAM l)
     if(message==WM_NCCALCSIZE)return 0;
     if(message==WM_NCPAINT)return 0;
     if(message==WM_NCACTIVATE)return TRUE;
+    if(message==WM_PRINTCLIENT){RECT client;GetClientRect(window,&client);self->Draw(reinterpret_cast<HDC>(w),client);return 0;}
     if(message==WM_PAINT){PAINTSTRUCT paint;HDC target=BeginPaint(window,&paint);RECT client;GetClientRect(window,&client);HDC memory=CreateCompatibleDC(target);HBITMAP bitmap=CreateCompatibleBitmap(target,client.right,client.bottom);auto old=SelectObject(memory,bitmap);self->Draw(memory,client);BitBlt(target,0,0,client.right,client.bottom,memory,0,0,SRCCOPY);SelectObject(memory,old);DeleteObject(bitmap);DeleteDC(memory);EndPaint(window,&paint);return 0;}
     if(message==WM_COMMAND&&HIWORD(w)==BN_CLICKED){self->Command(LOWORD(w));return 0;}
     if(message==WM_DRAWITEM){auto& item=*reinterpret_cast<DRAWITEMSTRUCT*>(l);auto& ui=self->app_.config.ui;bool active=item.CtlID==10?!self->appearance_:item.CtlID==11?self->appearance_:item.CtlID>=100&&item.CtlID<=106?static_cast<UINT>(self->selected_)==item.CtlID-100:item.CtlID==200?!UiVertical(ui,self->selected_):item.CtlID==201?UiVertical(ui,self->selected_):item.CtlID==220?IsShown(ui,self->selected_):item.CtlID==225?ui.railLabels:item.CtlID==226?ui.compactLaunchers:item.CtlID==227?ui.showActivity:item.CtlID==302?self->app_.config.wallpaperEnabled:false;

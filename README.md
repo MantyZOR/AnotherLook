@@ -6,7 +6,7 @@
 
 Проект вдохновлён кастомными рабочими столами **Arch Linux**, Hyprland и культурой *ricing*: когда окружение собирают под себя. Здесь та же идея свободы и минимализма, с обычными программами и играми Windows.
 
-[**Скачать 0.8.16**](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.16) · [Все релизы](https://github.com/MantyZOR/AnotherLook/releases) · [Сообщить о проблеме](https://github.com/MantyZOR/AnotherLook/issues)
+[**Скачать 0.8.17**](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.17) · [Все релизы](https://github.com/MantyZOR/AnotherLook/releases) · [Сообщить о проблеме](https://github.com/MantyZOR/AnotherLook/issues)
 
 ## Что умеет
 
@@ -21,11 +21,11 @@
 
 ## Установить и начать
 
-1. Открой [релиз 0.8.16](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.16) и скачай установщик `AnotherLook-0.8.16-Setup.exe`.
+1. Открой [релиз 0.8.17](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.17) и скачай установщик `AnotherLook-0.8.17-Setup.exe`.
 2. Установи программу и запусти её из меню «Пуск». У этой версии внутреннее имя и пункт меню пока **WindowsGoodView**.
 3. Выбери пространство, добавь виджеты и настрой панели через кнопку настроек.
 
-Для запуска из папки есть `AnotherLook-0.8.16-Portable.zip`: распакуй архив и открой `WindowsGoodView.exe`. Индекс и настройки создаются при использовании, в архиве их нет.
+Для запуска из папки есть `AnotherLook-0.8.17-Portable.zip`: распакуй архив и открой `WindowsGoodView.exe`. Индекс и настройки создаются при использовании, в архиве их нет.
 
 Для встроенных сайтов нужен **Microsoft Edge WebView2 Runtime**. Если он отсутствует, установщик предложит его установить через интернет. Остальные части оболочки работают без встроенного браузера.
 
