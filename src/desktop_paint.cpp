@@ -58,7 +58,7 @@ void Surface::DrawTool(float width,float height){
         hits_.push_back({button,[this]{app_.ToggleOverview();}});
     }else{
         Fill({0,0,width,height},Ink(UiTheme().panel),radius);Stroke({.5f,.5f,width-1,height-1},Ink(UiTheme().border),std::max(0.f,radius-.5f));
-        if(app_.config.ui.showActivity)IconButton(Glyph::Activity,L"",{6,6,40,height-12},[this]{ShowActivity();},app_.web.Busy()||app_.fileIndex.Status().busy);
+        if(app_.config.ui.showActivity)IconButton(Glyph::Activity,L"",{6,6,40,height-12},[this]{ShowActivity();},app_.web.Busy()||app_.fileIndex.Status().busy||app_.explorerSession.Phase()==ExplorerPhase::Preparing||app_.explorerSession.Phase()==ExplorerPhase::Restoring);
         IconButton(Glyph::Settings,L"",{width-46,6,40,height-12},[this]{ShowSettings();});
     }
 }

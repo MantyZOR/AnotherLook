@@ -27,7 +27,7 @@ void RemoveOwnedAutoStart();
 bool IsAutoStartEnabled();
 HICON CreateAppIcon();
 int RunGuardian(DWORD parent,const fs::path& dir);
-void RecoverSession(const fs::path& dir);
+void RecoverSession(const fs::path& dir,bool forceExplorer=false);
 void RequestRescue(DWORD parent);
 
 // Pass real Win shortcuts through; mask only a solitary Win release.

@@ -5,6 +5,13 @@ namespace gv {
 bool Application::WithSystemPrompt(HWND owner,const std::function<bool()>& action){
     if(systemPrompt_)return false;
     if(!config.enabled||preview)return action();
+    if(explorerSession.Engaged()){
+        // UAC owns the secure desktop; retain our usable desktop beneath it.
+        // There is no Explorer shell to reveal during this operation.
+        systemPrompt_=true;HidePowerPanel();SetHooks(false);
+        try{bool result=action();systemPrompt_=false;if(config.enabled&&!quitting)SetHooks(true);ExplorerChanged();return result;}
+        catch(...){systemPrompt_=false;if(config.enabled&&!quitting)SetHooks(true);ExplorerChanged();throw;}
+    }
     systemPrompt_=true;HidePowerPanel();CancelProgramActivation();launcher.Hide();SetHooks(false);
     // Release the Shell_TrayWnd proxy too: system consent must communicate with
     // Explorer's real shell window while our desktop is out of the way.

@@ -8,6 +8,8 @@
 
 [**Скачать 0.8.18**](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.18) · [Все релизы](https://github.com/MantyZOR/AnotherLook/releases) · [Сообщить о проблеме](https://github.com/MantyZOR/AnotherLook/issues)
 
+В [экспериментальной 0.8.19](https://github.com/MantyZOR/AnotherLook/releases/tag/v0.8.19) можно вручную попробовать временную замену Explorer с возвратом рабочего стола Windows. Режим отключён при обычном запуске. [Инструкция и ограничения](docs/EXPLORER_REPLACEMENT.md).
+
 ## Что умеет
 
 - **Разные пространства.** Работа, игры, сайты или своё полотно; у каждого свои карточки и оформление. Настройки сохраняются после перезагрузки.

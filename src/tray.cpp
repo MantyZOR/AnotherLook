@@ -58,7 +58,7 @@ NotificationTray::~NotificationTray(){Stop();}
 void NotificationTray::UpdateStyle(){auto theme=UiTheme();if(tooltip_){SendMessageW(tooltip_,TTM_SETTIPBKCOLOR,theme.panel,0);SendMessageW(tooltip_,TTM_SETTIPTEXTCOLOR,theme.text,0);}if(panel_)Layout(true);}
 bool NotificationTray::Start(bool isolatedTest){
     if(proxy_)return true;isolated_=isolatedTest;expanded_=false;textScale_=0;
-    if(!isolated_){explorer_=ExplorerTray(nullptr);if(!explorer_)return false;}
+    if(!isolated_){explorer_=ExplorerTray(nullptr);if(!explorer_&&!app_.explorerSession.Engaged())return false;}
     WNDCLASSW cls{};cls.hInstance=GetModuleHandleW(nullptr);cls.lpfnWndProc=ProxyProc;cls.lpszClassName=isolated_?L"GoodView.TrayTest.Proxy":L"Shell_TrayWnd";RegisterClassW(&cls);
     proxy_=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cls.lpszClassName,L"",WS_POPUP,0,0,0,0,nullptr,nullptr,cls.hInstance,this);if(!proxy_)return false;
     // Shell_NotifyIcon is also used by elevated clients. Only its marshalled message
@@ -83,6 +83,7 @@ void NotificationTray::RecoverExplorerIcons(){
     if(changed)Changed();
 }
 void NotificationTray::SendTaskbarCreated(){UINT message=RegisterWindowMessageW(L"TaskbarCreated");if(message)SendNotifyMessageW(HWND_BROADCAST,message,0,0);}
+void NotificationTray::ShellChanged(){if(!isolated_&&proxy_){explorer_=ExplorerTray(proxy_);std::erase_if(icons_,[](const auto& icon){DWORD pid=0;GetWindowThreadProcessId(icon.window,&pid);return !pid||pid!=icon.pid||icon.accessibility!=nullptr;});RecoverExplorerIcons();SendTaskbarCreated();Changed();}}
 void NotificationTray::Stop(){
     bool wasActive=proxy_!=nullptr,announce=wasActive&&!isolated_;if(tooltip_)DestroyWindow(tooltip_);tooltip_=nullptr;
     if(panel_)DestroyWindow(panel_);panel_=nullptr;if(proxy_)DestroyWindow(proxy_);proxy_=nullptr;

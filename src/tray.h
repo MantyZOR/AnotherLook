@@ -43,7 +43,7 @@ public:
     bool Visible()const{return panel_&&IsWindowVisible(panel_);}
     HWND Window()const{return panel_;}
     bool ExportPreview(const fs::path& path);
-    void UpdateStyle();
+    void UpdateStyle();void ShellChanged();
     bool WriteDiagnostics(const fs::path& path)const;
     bool Invoke(const TrayIcon& icon,bool rightClick,POINT point);
 private:

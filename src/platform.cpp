@@ -1,4 +1,5 @@
 #include "platform.h"
+#include "explorer_session.h"
 #include <shellapi.h>
 #include <dwmapi.h>
 #include <psapi.h>
@@ -318,7 +319,7 @@ void WindowManager::ToggleFloating(HWND h){for(auto&e:entries_)if(e.info.hwnd==h
 void WindowManager::MarkFloating(HWND h){for(auto&e:entries_)if(e.info.hwnd==h)e.floating=true;}
 void WindowManager::MoveToScene(HWND h,const std::wstring& scene){for(auto&e:entries_)if(e.info.hwnd==h){if(e.scene==scene)return;if(auto*s=FindScene(config_,e.scene)){auto rule=std::find_if(s->windows.begin(),s->windows.end(),[&](const SavedWindow&w){return SamePath(w.process,e.info.process)&&w.className==e.info.className;});if(rule!=s->windows.end())s->windows.erase(rule);}e.scene=scene;ApplyVisibility(e,scene==config_.active);}Capture();}
 size_t WindowManager::Count(const std::wstring& scene)const{return std::count_if(entries_.begin(),entries_.end(),[&](const Entry&e){return e.scene==scene&&Valid(e);});}
-void RecoverSession(const fs::path& dir){ShellChrome::Recover(dir);auto raw=ReadUtf8(dir/L"recovery.json");if(raw)try{auto o=json::JsonObject::Parse(*raw);auto prop=JStr(o,L"property");if(prop.starts_with(L"WindowsGoodView.Managed.")){for(auto v:o.GetNamedArray(L"windows")){auto j=v.GetObject();auto hwnd=reinterpret_cast<HWND>(std::stoull(JStr(j,L"hwnd")));auto token=std::stoull(JStr(j,L"token"));DWORD pid=0;GetWindowThreadProcessId(hwnd,&pid);if(pid!=static_cast<DWORD>(j.GetNamedNumber(L"pid"))||reinterpret_cast<ULONG_PTR>(GetPropW(hwnd,prop.c_str()))!=token)continue;WINDOWPLACEMENT p{sizeof(p)};p.flags=WPF_ASYNCWINDOWPLACEMENT;p.showCmd=static_cast<UINT>(j.GetNamedNumber(L"show",SW_SHOWNORMAL));p.rcNormalPosition={static_cast<LONG>(j.GetNamedNumber(L"left")),static_cast<LONG>(j.GetNamedNumber(L"top")),static_cast<LONG>(j.GetNamedNumber(L"right")),static_cast<LONG>(j.GetNamedNumber(L"bottom"))};SetWindowPlacement(hwnd,&p);ShowWindowAsync(hwnd,p.showCmd==SW_SHOWMINIMIZED?SW_SHOWMINNOACTIVE:SW_SHOWNOACTIVATE);RemovePropW(hwnd,prop.c_str());}}}catch(...){}std::error_code ec;fs::remove(dir/L"recovery.json",ec);RestoreWallpaperSnapshot(dir,true);}
+void RecoverSession(const fs::path& dir,bool forceExplorer){RecoverExplorerSession(dir,forceExplorer);ShellChrome::Recover(dir);auto raw=ReadUtf8(dir/L"recovery.json");if(raw)try{auto o=json::JsonObject::Parse(*raw);auto prop=JStr(o,L"property");if(prop.starts_with(L"WindowsGoodView.Managed.")){for(auto v:o.GetNamedArray(L"windows")){auto j=v.GetObject();auto hwnd=reinterpret_cast<HWND>(std::stoull(JStr(j,L"hwnd")));auto token=std::stoull(JStr(j,L"token"));DWORD pid=0;GetWindowThreadProcessId(hwnd,&pid);if(pid!=static_cast<DWORD>(j.GetNamedNumber(L"pid"))||reinterpret_cast<ULONG_PTR>(GetPropW(hwnd,prop.c_str()))!=token)continue;WINDOWPLACEMENT p{sizeof(p)};p.flags=WPF_ASYNCWINDOWPLACEMENT;p.showCmd=static_cast<UINT>(j.GetNamedNumber(L"show",SW_SHOWNORMAL));p.rcNormalPosition={static_cast<LONG>(j.GetNamedNumber(L"left")),static_cast<LONG>(j.GetNamedNumber(L"top")),static_cast<LONG>(j.GetNamedNumber(L"right")),static_cast<LONG>(j.GetNamedNumber(L"bottom"))};SetWindowPlacement(hwnd,&p);ShowWindowAsync(hwnd,p.showCmd==SW_SHOWMINIMIZED?SW_SHOWMINNOACTIVE:SW_SHOWNOACTIVATE);RemovePropW(hwnd,prop.c_str());}}}catch(...){}std::error_code ec;fs::remove(dir/L"recovery.json",ec);RestoreWallpaperSnapshot(dir,true);}
 void RequestRescue(DWORD parent){
     auto name=L"Local\\WindowsGoodView.Rescue."+std::to_wstring(parent);
     if(HANDLE event=OpenEventW(EVENT_MODIFY_STATE,FALSE,name.c_str())){SetEvent(event);CloseHandle(event);}
@@ -331,9 +332,11 @@ int RunGuardian(DWORD parent,const fs::path& dir){
     bool hotkey=RegisterHotKey(nullptr,1,MOD_CONTROL|MOD_ALT|MOD_SHIFT|MOD_NOREPEAT,VK_SPACE)!=FALSE;
     if(hotkey)if(HANDLE ready=OpenEventW(EVENT_MODIFY_STATE,FALSE,(L"Local\\WindowsGoodView.Ready."+suffix).c_str())){SetEvent(ready);CloseHandle(ready);}
     auto restore=[&](){
-        // This thread remains responsive even when the main UI is stuck in another app.
-        EnumWindows([](HWND window,LPARAM value)->BOOL{DWORD pid=0;GetWindowThreadProcessId(window,&pid);if(pid==static_cast<DWORD>(value))ShowWindowAsync(window,SW_HIDE);return TRUE;},parent);
-        RecoverSession(dir);ShellChrome::RepairTaskbars();WriteAtomic(dir/L"rescue.flag",L"Return to Windows requested");
+        CancelExplorerReplacement(dir);
+        bool explorerReady=RecoverExplorerSession(dir,true);
+        // Do not hide the last usable desktop before Explorer has returned.
+        if(explorerReady)EnumWindows([](HWND window,LPARAM value)->BOOL{DWORD pid=0;GetWindowThreadProcessId(window,&pid);if(pid==static_cast<DWORD>(value))ShowWindowAsync(window,SW_HIDE);return TRUE;},parent);
+        RecoverSession(dir,true);ShellChrome::RepairTaskbars();WriteAtomic(dir/L"rescue.flag",L"Return to Windows requested");
         if(HWND window=FindWindowW(L"GoodView.Events",dir.c_str()))PostMessageW(window,WM_APP+32,0,0);
     };
     if(!process){RecoverSession(dir);}else{

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.8.18"
+  #define AppVersion "0.8.19"
 #endif
 #ifndef AppBinary
   #define AppBinary "..\build\native\WindowsGoodView.exe"
@@ -91,5 +91,23 @@ var Code: Integer;
 begin
   Result := '';
   if FileExists(ExpandConstant('{app}\WindowsGoodView.exe')) then
-    Exec(ExpandConstant('{app}\WindowsGoodView.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  begin
+    if not Exec(ExpandConstant('{app}\WindowsGoodView.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code) then
+      Result := 'Не удалось запросить завершение Another Look. Верни рабочий стол Windows через меню программы и повтори установку.'
+    else if Code <> 0 then
+      Result := 'Another Look ещё возвращает рабочий стол Windows. Заверши возврат через меню программы и повтори установку.';
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+var Code: Integer;
+begin
+  Result := True;
+  if FileExists(ExpandConstant('{app}\WindowsGoodView.exe')) then
+  begin
+    Result := Exec(ExpandConstant('{app}\WindowsGoodView.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    if Result then Result := Code = 0;
+    if not Result then
+      SuppressibleMsgBox('Сначала верни рабочий стол Windows через меню Another Look, затем повтори удаление.', mbInformation, MB_OK, IDOK);
+  end;
 end;

@@ -1,6 +1,7 @@
 #pragma once
 #include <tuple>
 #include "platform.h"
+#include "explorer_session.h"
 #include "web.h"
 #include "launcher.h"
 #include "design.h"
@@ -142,6 +143,7 @@ public:
     Config config;fs::path dataDir;bool preview=false,quitting=false,showAppsOnStart=false,showSettingsOnStart=false,initializeFileSearch=false,enableFastOnStart=false;
     std::wstring fastSetupOnStart;
     std::vector<Monitor> monitors;
+    ExplorerSession explorerSession;bool replaceExplorerOnStart=false;
     WindowManager windows;Wallpaper wallpaper;WebManager web;ShellChrome chrome;Launcher launcher;
     WinKeyGuard winKey;
     IconCache icons;
@@ -206,6 +208,8 @@ public:
     void SyncPanels(bool reveal=false);
     void SchedulePanelSync(bool geometryChange=false);
     void ShowTrayMenu();
+    void ExplorerModeMenu(HWND owner);void ReplaceExplorer();void ExplorerChanged();
+    void RefreshExplorerChrome();bool ExplorerReturning()const{return explorerReturnPending_;}
     void UpdateTray();
     std::wstring ResourceText()const;
     void SyncSystemWidget();void SampleSystemWidget();
@@ -220,6 +224,8 @@ private:
     std::set<std::wstring> launched_;
     bool saving_=false,applying_=false;ULONGLONG lastTile_=0;
     HWND addingSceneOwner_{};
+    bool explorerReturnPending_=false,explorerQuitPending_=false;
+    ExplorerPhase explorerNotified_=ExplorerPhase::Overlay;std::wstring explorerError_;
     bool powerOpen_=false;int powerMonitor_=0;unsigned winReleaseRetries_=0;
     bool panelSyncPending_=false,syncingPanels_=false;
     bool systemPrompt_=false;
