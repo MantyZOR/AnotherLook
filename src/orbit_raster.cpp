@@ -1,3 +1,4 @@
+#include "live_probe.h"
 #include "ui.h"
 #include <commctrl.h>
 #include <algorithm>
@@ -50,7 +51,7 @@ void BlitIcon(const MonoIcon& icon,float left,float top,float extent,float opaci
     }
 }
 }
-bool Surface::PaintOrbitRaster(int width,int height,UINT dpi){
+bool Surface::PaintOrbitRaster(int width,int height,UINT dpi){LiveProbeScope profile(ProbeArea::OrbitRaster);
     auto stamp=profilePaint_?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
     auto cost=[&](int part){if(profilePaint_){auto now=std::chrono::steady_clock::now();paintMs_[part]+=std::chrono::duration<double,std::milli>(now-stamp).count();stamp=now;}};
     // Bounded, per-ring storage, with vector rendering as the fallback for very
@@ -62,7 +63,7 @@ bool Surface::PaintOrbitRaster(int width,int height,UINT dpi){
     auto theme=UiTheme();int page=1+static_cast<int>(std::ceil(orbit_.Position()/OrbitCapacity)),pages=(count+OrbitCapacity-1)/OrbitCapacity;
     OrbitRasterKey key{width,height,dpi,app_.config.ui.textScale,layout.visible,page,pages,theme.panel,theme.border,theme.text,theme.muted,theme.accent};
     auto pixels=panelBitmap_.Pixels();size_t area=static_cast<size_t>(width)*height;float pixelScale=std::min(width,height)/280.f;
-    if(!orbitRasterKey_||*orbitRasterKey_!=key){
+    if(!orbitRasterKey_||*orbitRasterKey_!=key){LiveProbeCount(ProbeCount::RasterBuilds);
         orbitRasterKey_.reset();orbitCoverage_={};orbitBase_.clear();
         auto hover=orbitHover_;int pointer=hover_;orbitHover_.Reset();float uiScale=app_.config.ui.textScale;
         auto render=[&](int part){orbitRasterPart_=part;scaledUi_=true;rt_->BeginDraw();rt_->Clear(D2D1::ColorF(0,0.f));rt_->SetTransform(D2D1::Matrix3x2F::Scale(uiScale,uiScale));DrawOrbit(width*96.f/dpi/uiScale,height*96.f/dpi/uiScale);rt_->SetTransform(D2D1::Matrix3x2F::Identity());auto result=rt_->EndDraw();scaledUi_=false;orbitRasterPart_=0;return SUCCEEDED(result);};
@@ -119,6 +120,6 @@ bool Surface::PaintOrbitRaster(int width,int height,UINT dpi){
         };
         if(cell.before==cell.after)icon(before.hwnd,1);else{icon(before.hwnd,1-cell.blend);icon(after.hwnd,cell.blend);}
     }
-    cost(2);bool presented=iconsReady&&panelBitmap_.Present(hwnd);cost(3);return presented;
+    cost(2);bool presented=false;{LiveProbeScope presentProfile(ProbeArea::Present);presented=iconsReady&&panelBitmap_.Present(hwnd);}cost(3);return presented;
 }
 }

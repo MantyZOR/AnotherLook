@@ -1,3 +1,4 @@
+#include "live_probe.h"
 #include "ui.h"
 #include <shellapi.h>
 #include <commctrl.h>
@@ -125,7 +126,7 @@ void Application::ApplyState(bool show,bool sceneOnly){if(applying_)return;apply
     SetTimer(events,TIMER_CLOCK,60000,nullptr);applying_=false;notificationTray.UpdateStyle();launcher.UpdateStyle();notificationTray.Sync(enabled&&config.ui.showTray);SyncPanels();RefreshWindows();Refresh();UpdateTray();(void)show;}
 void Application::ShowOverview(){EnterWorkspace();}
 void Application::EnterWorkspace(){if(!config.enabled)Enable();else ShowDesktop();}
-void Application::RefreshWindows(){
+void Application::RefreshWindows(){LiveProbeScope profile(ProbeArea::RefreshWindows);
     auto next=ListAppWindows();for(const auto& entry:windows.Entries())if(entry.scene==config.active&&IsWindow(entry.info.hwnd)&&IsWindowVisible(entry.info.hwnd)&&std::none_of(next.begin(),next.end(),[&](const WindowInfo& info){return info.hwnd==entry.info.hwnd;}))next.push_back(entry.info);
     // EnumWindows follows Z order. Keep existing slots when focus changes and append
     // newly opened windows so the task rail does not jump under the pointer.
@@ -279,14 +280,14 @@ void Application::SyncSeconds(){
     if(!events||quitting)return;bool visible=false;if(config.enabled||preview)for(auto& board:boards)visible|=board->TickSeconds();
     if(visible==secondsTimer_)return;secondsTimer_=visible;if(visible)SetTimer(events,TIMER_SECONDS,1000,nullptr);else KillTimer(events,TIMER_SECONDS);
 }
-void Application::SampleSystemWidget(){
+void Application::SampleSystemWidget(){LiveProbeScope scope(ProbeArea::SystemSample);
     SyncSystemWidget();if(!systemTimer_)return;systemLoad.Sample(systemLoad.Metrics());for(auto& board:boards)if(board->HasVisibleSystemWidget())board->Invalidate();
 }
 void Application::Quit(){if(quitting)return;windows.Capture();Save();json::JsonObject metrics;metrics.SetNamedValue(L"desktopPaints",json::JsonValue::CreateNumberValue(static_cast<double>(paints)));metrics.SetNamedValue(L"panelPaints",json::JsonValue::CreateNumberValue(static_cast<double>(panelPaints)));metrics.SetNamedValue(L"windowEvents",json::JsonValue::CreateNumberValue(static_cast<double>(windowEvents)));metrics.SetNamedValue(L"fullscreenNotices",json::JsonValue::CreateNumberValue(static_cast<double>(fullscreenNotices)));metrics.SetNamedValue(L"clockTicks",json::JsonValue::CreateNumberValue(static_cast<double>(clockTicks)));WriteAtomic(dataDir/L"diagnostics.json",std::wstring(metrics.Stringify()));quitting=true;CancelProgramActivation();fileIndex.RequestStop();launcher.RequestStopIndex();SetHooks(false);launcher.Hide();fileSettings.Close();customization.Close();notificationTray.Stop();for(auto* list:{&tools,&bars,&rails,&boards})for(auto& surface:*list){surface->Show(false);if(surface->bar||surface->rail)surface->Place(true);}chrome.Restore();windows.RestoreAll();if(events)wallpaper.Restore(true);ShutdownStage(L"desktop-restored");PostQuitMessage(0);}
 void Application::ShutdownStage(std::wstring_view stage){if(!events)return;json::JsonObject record;record.SetNamedValue(L"stage",json::JsonValue::CreateStringValue(stage));record.SetNamedValue(L"tick",json::JsonValue::CreateNumberValue(static_cast<double>(GetTickCount64())));record.SetNamedValue(L"pid",json::JsonValue::CreateNumberValue(GetCurrentProcessId()));WriteAtomic(dataDir/L"shutdown.json",std::wstring(record.Stringify()));}
 void Application::UpdateTray(){if(!events)return;NOTIFYICONDATAW n{sizeof(n)};n.hWnd=events;n.uID=1;n.uFlags=NIF_TIP;auto text=L"WindowsGoodView · "+Active().name+(config.enabled?L"":preview?L" · предпросмотр":L" · Windows");wcsncpy_s(n.szTip,text.c_str(),_TRUNCATE);Shell_NotifyIconW(NIM_MODIFY,&n);}
 void Application::ShowTrayMenu(){HMENU menu=CreatePopupMenu();AppendMenuW(menu,MF_STRING,1,L"Открыть пространства");AppendMenuW(menu,MF_SEPARATOR,0,nullptr);for(size_t i=0;i<config.scenes.size();++i)AppendMenuW(menu,MF_STRING|(config.scenes[i].id==config.active?MF_CHECKED:0),static_cast<UINT_PTR>(100+i),config.scenes[i].name.c_str());AppendMenuW(menu,MF_SEPARATOR,0,nullptr);AppendMenuW(menu,MF_STRING,2,config.enabled?L"Приостановить окружение / вернуть окна":L"Включить окружение");AppendMenuW(menu,MF_STRING,3,L"Завершить и вернуть обычный рабочий стол");POINT p;GetCursorPos(&p);SetForegroundWindow(events);UINT id=StyledMenu(menu,events,p);DestroyMenu(menu);if(id==1)ShowOverview();else if(id==2){if(config.enabled)Pause();else Enable();}else if(id==3)Quit();else if(id>=100&&id<100+config.scenes.size())SwitchScene(config.scenes[id-100].id);PostMessageW(events,WM_NULL,0,0);}
-void Application::SyncPanels(bool reveal){
+void Application::SyncPanels(bool reveal){LiveProbeScope profile(ProbeArea::SyncPanels);
     if(!config.enabled||preview||quitting||applying_||syncingPanels_||systemPrompt_)return;
     syncingPanels_=true;
     // Event HWNDs and global appbar notifications can be stale. Read focus now.
@@ -315,7 +316,7 @@ void Application::SchedulePanelSync(bool geometryChange){
     if(geometryChange){SetTimer(events,TIMER_PANEL_GEOMETRY,90,nullptr);return;}
     if(panelSyncPending_)return;panelSyncPending_=true;PostMessageW(events,WM_PANEL_SYNC,0,0);
 }
-void Application::HandleWindowEvent(DWORD event,HWND window){
+void Application::HandleWindowEvent(DWORD event,HWND window){LiveProbeWindowEvent(event);
     ++windowEvents;if(systemPrompt_)return;
     if(event==EVENT_SYSTEM_MENUPOPUPSTART||event==EVENT_SYSTEM_MENUPOPUPEND){
         if(event==EVENT_SYSTEM_MENUPOPUPSTART)externalMenus_.insert(window);else{externalMenus_.erase(window);trayMenuPending_=false;if(events)KillTimer(events,TIMER_TRAY_MENU);}
@@ -343,7 +344,8 @@ void CALLBACK Application::WinEvent(HWINEVENTHOOK,DWORD event,HWND h,LONG obj,LO
     // top-level windows so closing browser child controls does not rescan every app.
     if(event==EVENT_OBJECT_DESTROY&&!currentApp->windows.IsManaged(h)&&std::none_of(currentApp->openWindows.begin(),currentApp->openWindows.end(),[&](const auto& window){return window.hwnd==h;}))return;
     bool filtered=(event==EVENT_OBJECT_LOCATIONCHANGE&&h!=GetForegroundWindow())||(event>=EVENT_OBJECT_CREATE&&(obj!=OBJID_WINDOW||child!=CHILDID_SELF||(event!=EVENT_OBJECT_DESTROY&&GetAncestor(h,GA_ROOT)!=h)));if(filtered){wchar_t name[128]{};GetClassNameW(h,name,128);if(std::wstring_view(name)!=L"Shell_TrayWnd"&&std::wstring_view(name)!=L"Shell_SecondaryTrayWnd")return;}PostMessageW(currentApp->events,WM_WINDOW_EVENT,event,reinterpret_cast<LPARAM>(h));}
-LRESULT CALLBACK Application::EventProc(HWND h,UINT m,WPARAM w,LPARAM l){auto*a=reinterpret_cast<Application*>(GetWindowLongPtrW(h,GWLP_USERDATA));if(m==WM_NCCREATE){a=static_cast<Application*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(h,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(a));}if(!a)return DefWindowProcW(h,m,w,l);
+LRESULT CALLBACK Application::EventProc(HWND h,UINT m,WPARAM w,LPARAM l){auto*a=reinterpret_cast<Application*>(GetWindowLongPtrW(h,GWLP_USERDATA));if(m==WM_NCCREATE){a=static_cast<Application*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(h,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(a));}if(!a)return DefWindowProcW(h,m,w,l);LiveProbeScope profile(ProbeArea::EventMessages);
+    if(m==WM_APP+88){StartLiveProbe(h,a->dataDir);return 0;}if(m==WM_TIMER&&w==LiveProbeTimer){TickLiveProbe();return 0;}
     if(m==WM_APP+86){a->config.files.initialized=a->config.files.enabled=a->config.files.fastNtfs=true;a->ConfigureFiles();a->SaveSoon();if(!a->fileIndex.Status().fastConnected)a->RequestIndexAccess(a->fileSettings.Window()?a->fileSettings.Window():h);return 0;}
     if(m==WM_APP+87&&w>=L'A'&&w<=L'Z'){a->config.files.initialized=a->config.files.enabled=a->config.files.fastNtfs=true;a->ConfigureFiles();a->SaveSoon();a->RequestIndexAccess(a->fileSettings.Window()?a->fileSettings.Window():h,std::wstring(1,static_cast<wchar_t>(w)));return 0;}
     if(m==WM_APP+85){auto status=a->fileIndex.Status();json::JsonObject report;auto number=[&](const wchar_t* key,uint64_t value){report.SetNamedValue(key,json::JsonValue::CreateNumberValue(static_cast<double>(value)));};number(L"entries",status.entries);number(L"folders",status.folders);number(L"skipped",status.skipped);number(L"bytes",status.bytes);number(L"elapsedMs",status.elapsedMs);number(L"queryMs",status.queryMs);number(L"scannedEntries",status.scannedEntries);number(L"currentEntries",status.currentEntries);number(L"fastEntries",status.fastEntries);number(L"mftReadMs",status.mftReadMs);number(L"mftBuildMs",status.mftBuildMs);number(L"mftRecords",status.mftRecords);number(L"mftIndexed",status.mftIndexed);number(L"mftCapacity",status.mftCapacity);number(L"remainingMs",status.remainingMs);number(L"usnChanges",status.usnChanges);report.SetNamedValue(L"fastConnected",json::JsonValue::CreateBooleanValue(status.fastConnected));report.SetNamedValue(L"fastCached",json::JsonValue::CreateBooleanValue(status.fastCached));report.SetNamedValue(L"provider",json::JsonValue::CreateStringValue(status.provider));report.SetNamedValue(L"note",json::JsonValue::CreateStringValue(status.note));report.SetNamedValue(L"journalMissing",json::JsonValue::CreateStringValue(status.journalMissing));report.SetNamedValue(L"busy",json::JsonValue::CreateBooleanValue(status.busy));report.SetNamedValue(L"paused",json::JsonValue::CreateBooleanValue(status.paused));report.SetNamedValue(L"trigram",json::JsonValue::CreateBooleanValue(status.trigram));report.SetNamedValue(L"error",json::JsonValue::CreateStringValue(status.error));WriteAtomic(a->dataDir/L"file-index-status.json",std::wstring(report.Stringify()));return 0;}

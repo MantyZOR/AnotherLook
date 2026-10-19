@@ -1,9 +1,10 @@
+#include "live_probe.h"
 #include "ui.h"
 #include <algorithm>
 #include <cmath>
 #include <chrono>
 namespace gv {
-void Surface::DrawNetwork(float width,float height,Box dirty){
+void Surface::DrawNetwork(float width,float height,Box dirty){LiveProbeScope profile(ProbeArea::Network);
     auto began=profilePaint_?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
     auto cost=[&](int part){if(profilePaint_){auto now=std::chrono::steady_clock::now();paintMs_[part]+=std::chrono::duration<double,std::milli>(now-began).count();began=now;}};
     auto& scene=app_.Active();const auto theme=UiTheme();

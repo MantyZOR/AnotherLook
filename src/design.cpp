@@ -1,3 +1,4 @@
+#include "live_probe.h"
 #include "design.h"
 #include "orbit_layout.h"
 #include <uxtheme.h>
@@ -189,9 +190,9 @@ void DrawMonoIcon(HDC dc,const MonoIcon& icon,RECT r){
     }}
     int x=r.left+(r.right-r.left-size)/2,y=r.top+(r.bottom-r.top-size)/2;HDC src=CreateCompatibleDC(dc);auto old=SelectObject(src,image);BLENDFUNCTION blend{AC_SRC_OVER,0,255,AC_SRC_ALPHA};int sourceSize=image==icon.bitmap?icon.size:size;AlphaBlend(dc,x,y,size,size,src,0,0,sourceSize,sourceSize,blend);SelectObject(src,old);DeleteDC(src);
 }
-std::shared_ptr<MonoIcon> IconCache::GetWindow(HWND window){
+std::shared_ptr<MonoIcon> IconCache::GetWindow(HWND window){LiveProbeScope profile(ProbeArea::IconLookup);
     DWORD pid=0;GetWindowThreadProcessId(window,&pid);auto key=L"window:"+std::to_wstring(pid)+L":"+std::to_wstring(reinterpret_cast<ULONG_PTR>(window));auto previous=icons_.find(key);auto now=GetTickCount64();if(previous!=icons_.end()&&now<windowExpiry_[key])return previous->second;
-    HICON shared=nullptr;for(WPARAM kind:{ICON_BIG,ICON_SMALL2,ICON_SMALL}){DWORD_PTR result=0;SendMessageTimeoutW(window,WM_GETICON,kind,0,SMTO_ABORTIFHUNG|SMTO_BLOCK,35,&result);if(result){shared=reinterpret_cast<HICON>(result);break;}}
+    LiveProbeCount(ProbeCount::IconMisses);HICON shared=nullptr;for(WPARAM kind:{ICON_BIG,ICON_SMALL2,ICON_SMALL}){DWORD_PTR result=0;SendMessageTimeoutW(window,WM_GETICON,kind,0,SMTO_ABORTIFHUNG|SMTO_BLOCK,35,&result);if(result){shared=reinterpret_cast<HICON>(result);break;}}
     if(!shared)shared=reinterpret_cast<HICON>(GetClassLongPtrW(window,GCLP_HICON));if(!shared)shared=reinterpret_cast<HICON>(GetClassLongPtrW(window,GCLP_HICONSM));auto icon=MonoFromIcon(shared);
     if(icon->pixels.empty()){
         ComPtr<IPropertyStore> properties;PROPVARIANT value{};

@@ -1,3 +1,4 @@
+#include "live_probe.h"
 #include "ui.h"
 #include <commctrl.h>
 #include <wincodec.h>
@@ -83,7 +84,7 @@ void Surface::SyncWeb(){
         auto placement=PlaceEmbeddedWeb(CanvasBox(card),viewport,scale);app_.web.Position(card.id,hwnd,placement.bounds,placement.visible);
     }
 }
-void Surface::Paint(){
+void Surface::Paint(){LiveProbeScope profile(rail?ProbeArea::PaintRail:bar?ProbeArea::PaintTool:ProbeArea::PaintBoard);
     if(bar||rail)++app_.panelPaints;else ++app_.paints;
     PAINTSTRUCT paint;BeginPaint(hwnd,&paint);RECT client;GetClientRect(hwnd,&client);UINT dpi=GetDpiForWindow(hwnd);float width=client.right*96.f/dpi,height=client.bottom*96.f/dpi;if(!client.right||!client.bottom){EndPaint(hwnd,&paint);return;}
     if((bar||rail)&&panelBitmap_.Dc()&&(panelBitmap_.Size().cx!=client.right||panelBitmap_.Size().cy!=client.bottom))Discard();
@@ -96,7 +97,8 @@ void Surface::Paint(){
     if(!rt_){bool animated=!bar&&!rail&&networkAnimating_;auto properties=D2D1::RenderTargetProperties(app_.config.softwareRendering&&!animated?D2D1_RENDER_TARGET_TYPE_SOFTWARE:D2D1_RENDER_TARGET_TYPE_DEFAULT);properties.dpiX=properties.dpiY=static_cast<float>(dpi);ComPtr<ID2D1HwndRenderTarget> target;
         if(FAILED(app_.d2d->CreateHwndRenderTarget(properties,D2D1::HwndRenderTargetProperties(hwnd,D2D1::SizeU(client.right,client.bottom),D2D1_PRESENT_OPTIONS_RETAIN_CONTENTS),&target))){EndPaint(hwnd,&paint);return;}target.As(&rt_);rt_->CreateSolidColorBrush(Ink(UiTheme().text),&brush_);
     }
-    if(rail&&app_.config.ui.railOrbit&&orbitRasterPart_==0&&PaintOrbitRaster(client.right,client.bottom,dpi)){EndPaint(hwnd,&paint);return;}
+    if(rail&&app_.config.ui.railOrbit&&orbitRasterPart_==0&&PaintOrbitRaster(client.right,client.bottom,dpi)){LiveProbeCount(ProbeCount::RasterFrames);EndPaint(hwnd,&paint);return;}
+    if(rail&&app_.config.ui.railOrbit)LiveProbeCount(ProbeCount::RasterFallbacks);
     rt_->BeginDraw();bool clipped=!panelBitmap_.Dc()&&!IsRectEmpty(&paint.rcPaint);if(clipped){float scale=96.f/dpi;rt_->PushAxisAlignedClip(D2D1::RectF(paint.rcPaint.left*scale,paint.rcPaint.top*scale,paint.rcPaint.right*scale,paint.rcPaint.bottom*scale),D2D1_ANTIALIAS_MODE_ALIASED);}rt_->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);hits_.clear();cards_.clear();auto& scene=app_.Active();auto accent=Ink(UiTheme().accent),muted=Ink(UiTheme().muted),foreground=Ink(UiTheme().text);if(bar||rail||(app_.config.wallpaperEnabled&&!scene.wallpaper.empty()))rt_->Clear(rail&&app_.config.ui.railOrbit?D2D1::ColorF(0,0.f):Ink((bar||rail)?UiTheme().panel:UiTheme().canvas));
     auto drawUi=[&](Box box,auto draw){float scale=app_.config.ui.textScale;size_t first=hits_.size();scaledUi_=true;rt_->SetTransform(D2D1::Matrix3x2F::Scale(scale,scale)*D2D1::Matrix3x2F::Translation(box.x,box.y));draw(box.w/scale,box.h/scale);rt_->SetTransform(D2D1::Matrix3x2F::Identity());scaledUi_=false;for(size_t i=first;i<hits_.size();++i){auto& hit=hits_[i];hit.box={box.x+hit.box.x*scale,box.y+hit.box.y*scale,hit.box.w*scale,hit.box.h*scale};}};
     if(bar)drawUi({0,0,width,height},[&](float w,float h){if(element==UiElement::Navigation)DrawBar(w,h);else DrawTool(w,h);});else if(rail)drawUi({0,0,width,height},[&](float w,float h){DrawRail(w,h);});else{
@@ -108,7 +110,7 @@ void Surface::Paint(){
             auto previous=element;for(auto kind:{UiElement::Search,UiElement::Settings}){element=kind;drawUi(app_.PanelBox(kind,monitor,{0,0,width,height}),[&](float w,float h){DrawTool(w,h);});}element=previous;
         }
         auto viewport=Viewport();rt_->PushAxisAlignedClip(Rect(viewport),D2D1_ANTIALIAS_MODE_ALIASED);size_t count=0;drawingCards_=true;
-        for(auto& card:scene.cards)if(CardMonitor(card)==monitor){auto box=CanvasBox(card);if(box.x<viewport.x+viewport.w&&box.y<viewport.y+viewport.h&&box.x+box.w>viewport.x&&box.y+box.h>viewport.y)DrawCard(card,box);++count;}
+        {LiveProbeScope scope(ProbeArea::BoardCards);for(auto& card:scene.cards)if(CardMonitor(card)==monitor){auto box=CanvasBox(card);if(box.x<viewport.x+viewport.w&&box.y<viewport.y+viewport.h&&box.x+box.w>viewport.x&&box.y+box.h>viewport.y)DrawCard(card,box);++count;}}
         drawingCards_=false;
         if(!count){float x=std::max(70.f,(width-760)/2),y=std::max(230.f,(height-420)/2);
             Text(Clock(),{x,y,760,130},104,foreground,300);Text(scene.gaming?L"Время для себя.":L"Твоё свободное пространство.",{x+5,y+146,754,54},32,foreground,400);
@@ -130,7 +132,7 @@ void Surface::Paint(){
             });
         }
     }
-    if(clipped)rt_->PopAxisAlignedClip();auto presentStarted=profilePaint_?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};auto result=rt_->EndDraw();if(profilePaint_)paintMs_[4]+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-presentStarted).count();if(SUCCEEDED(result)&&panelBitmap_.Dc()){if(!(rail&&app_.config.ui.railOrbit))panelBitmap_.RoundAlpha(UiRadius(app_.config.ui,element)*app_.config.ui.textScale*dpi/96.f);panelBitmap_.Present(hwnd);}if(result==D2DERR_RECREATE_TARGET)Discard();EndPaint(hwnd,&paint);
+    if(clipped)rt_->PopAxisAlignedClip();auto presentStarted=profilePaint_?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};HRESULT result;{LiveProbeScope scope(ProbeArea::EndDraw);result=rt_->EndDraw();}if(profilePaint_)paintMs_[4]+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-presentStarted).count();if(SUCCEEDED(result)&&panelBitmap_.Dc()){if(!(rail&&app_.config.ui.railOrbit))panelBitmap_.RoundAlpha(UiRadius(app_.config.ui,element)*app_.config.ui.textScale*dpi/96.f);{LiveProbeScope presentProfile(ProbeArea::Present);panelBitmap_.Present(hwnd);}}if(result==D2DERR_RECREATE_TARGET)Discard();EndPaint(hwnd,&paint);
     if(!bar)SyncWeb();if((bar||rail)&&tooltip_){float scale=dpi/96.f;TOOLINFOW info{sizeof(info)};info.hwnd=hwnd;info.uId=1;info.rect=(rail||element==UiElement::Power)?RECT{0,0,client.right,client.bottom}:RECT{static_cast<LONG>(6*scale),static_cast<LONG>(6*scale),static_cast<LONG>(46*scale),static_cast<LONG>((height-6)*scale)};SendMessageW(tooltip_,TTM_NEWTOOLRECTW,0,reinterpret_cast<LPARAM>(&info));}
 }
 }

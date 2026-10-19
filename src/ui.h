@@ -70,6 +70,8 @@ private:
     void CachedText(std::wstring_view text,Box box,float size,D2D1_COLOR_F color,int weight,bool wrap,FontRole role,bool center,bool inkCenter=false);
     RECT reservation_{};
     HWND tooltip_{};std::wstring tooltipText_;
+    std::array<HCURSOR,3> pointerCursors_{};HCURSOR pointerCursor_{};
+    void SetPointerCursor(bool hand,bool resize=false);
     std::map<std::wstring,Box> before_;std::set<std::wstring> selected_;
     void Button(std::wstring_view text,Box box,std::function<void()> action,bool active=false,bool quiet=false);
     void Text(std::wstring_view text,Box box,float size,D2D1_COLOR_F color,int weight=400,bool wrap=false,FontRole role=FontRole::Interface);

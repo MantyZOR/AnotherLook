@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "live_probe.h"
 #include <wincodec.h>
 #include <psapi.h>
 #include <chrono>
@@ -63,6 +64,18 @@ struct DesktopRegressionProbe {
         auto allWindows=app.openWindows;for(size_t count:{4u,1u,0u}){app.openWindows.resize(count);rail.orbitHover_.Reset();InvalidateRect(rail.hwnd,nullptr,FALSE);rail.Paint();checkPixels();compareVector();if(rail.hits_.size()!=count)throw std::runtime_error("closing windows left stale ring targets");}app.openWindows=std::move(allWindows);fullRing(0);
         report.SetNamedValue(L"ringAllStatesMaxImageMeanError",json::JsonValue::CreateNumberValue(maxImageMean));if(maxImageMean>1)throw std::runtime_error("scroll or window-count changes differ from vector reference");
         rail.HoverOrbit(0);rail.Show(false);if(rail.orbitTimerActive_||rail.orbitHover_.Running())throw std::runtime_error("hidden ring retained an animation timer");rail.HoverOrbit(1);if(rail.orbitHover_.Running()&&!rail.orbitTimerActive_)throw std::runtime_error("ring timer did not restart after hide");KillTimer(rail.hwnd,83);
+        auto savedCursor=GetCursor();
+        for(auto shape:{0,1,2}){
+            rail.SetPointerCursor(shape==1,shape==2);auto expected=GetCursor();
+            for(int i=0;i<20;++i)SendMessageW(rail.hwnd,WM_SETCURSOR,reinterpret_cast<WPARAM>(rail.hwnd),MAKELPARAM(HTCLIENT,WM_MOUSEMOVE));
+            if(!expected||GetCursor()!=expected)throw std::runtime_error("client cursor was reset between mouse moves");
+        }
+        SendMessageW(rail.hwnd,WM_SETTINGCHANGE,0,0);
+        if(rail.pointerCursor_||std::any_of(rail.pointerCursors_.begin(),rail.pointerCursors_.end(),[](auto value){return value!=nullptr;}))throw std::runtime_error("system cursor settings did not expire the cache");
+        SetCursor(savedCursor);report.SetNamedValue(L"clientCursorPreservedAndSettingsReloaded",json::JsonValue::CreateBooleanValue(true));
+        if(!StartLiveProbe(rail.hwnd,dir,120))throw std::runtime_error("pointer diagnostic failed to start");
+        report.SetNamedValue(L"ringPointerMoves",Measure(6000,[&](int i){float angle=i*.013f;rail.MouseMove({static_cast<LONG>(140+110*std::cos(angle)),static_cast<LONG>(140+110*std::sin(angle))},0);}));
+        TickLiveProbe();KillTimer(rail.hwnd,LiveProbeTimer);KillTimer(rail.hwnd,83);
         unsigned hitCount=0;report.SetNamedValue(L"ringHitTests",Measure(100000,[&](int i){float x=140+110*std::cos(i*.13f),y=140+110*std::sin(i*.13f);for(const auto& hit:rail.hits_)hitCount+=rail.ContainsHit(hit,x,y);}));if(!hitCount)throw std::runtime_error("no clickable segments");
         unsigned timerMessages=0,immediateFrames=0;ValidateRect(rail.hwnd,nullptr);for(int i=0;i<30;++i){rail.HoverOrbit(i%9);if(GetUpdateRect(rail.hwnd,nullptr,FALSE)){++immediateFrames;ValidateRect(rail.hwnd,nullptr);}Sleep(3);MSG message;while(PeekMessageW(&message,rail.hwnd,WM_TIMER,WM_TIMER,PM_REMOVE))if(message.wParam==83)++timerMessages;}KillTimer(rail.hwnd,83);report.SetNamedValue(L"hoverImmediateInvalidations",json::JsonValue::CreateNumberValue(immediateFrames));report.SetNamedValue(L"hoverTimerMessagesDuringRetarget",json::JsonValue::CreateNumberValue(timerMessages));SaveBitmapPng(rail.panelBitmap_.Size().cx?reinterpret_cast<HBITMAP>(GetCurrentObject(rail.panelBitmap_.Dc(),OBJ_BITMAP)):nullptr,dir/L"ring.png");
         for(auto window:fixtures)DestroyWindow(window);app.openWindows.clear();

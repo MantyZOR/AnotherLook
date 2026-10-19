@@ -1,3 +1,4 @@
+#include "live_probe.h"
 #include "ui.h"
 #include <commctrl.h>
 #include <algorithm>
@@ -44,7 +45,7 @@ bool Surface::ContainsHit(const Hit& hit,float x,float y)const{
     // The resting silhouette remains a stable target while the segment lifts.
     return ContainsOrbitSegment(hit.orbitSlot,orbitVisible_,x,y)||ContainsOrbitSegment(hit.orbitSlot,orbitVisible_,x,y,orbitHover_.Value(hit.orbitSlot));
 }
-void Surface::DrawOrbit(float width,float height){
+void Surface::DrawOrbit(float width,float height){LiveProbeScope profile(ProbeArea::OrbitVector);
     float scale=std::min(width,height)/280.f,cx=width/2,cy=height/2;
     D2D1_MATRIX_3X2_F previous;rt_->GetTransform(&previous);
     orbitFrame_={previous._31,previous._32,width*previous._11,height*previous._22};

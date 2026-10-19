@@ -1,3 +1,4 @@
+#include "live_probe.h"
 #include "tray.h"
 #include "ui.h"
 #include <commctrl.h>
@@ -88,7 +89,7 @@ void NotificationTray::Stop(){
     if(font_)DeleteObject(font_);font_=nullptr;icons_.clear();hits_.clear();dirty_=false;explorer_=nullptr;
     panelBitmap_.Reset();if(announce)SendTaskbarCreated();
 }
-void NotificationTray::Sync(bool visible,bool topmost,HWND behind){
+void NotificationTray::Sync(bool visible,bool topmost,HWND behind){LiveProbeScope profile(ProbeArea::TraySync);
     if(!proxy_)return;
     if(!isolated_){
         HWND current=ExplorerTray(proxy_);bool restarted=current&&current!=explorer_;explorer_=current;
