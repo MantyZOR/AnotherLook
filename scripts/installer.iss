@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.8.8"
+  #define AppVersion "0.8.12"
 #endif
 #ifndef AppBinary
   #define AppBinary "..\build\native\WindowsGoodView.exe"
@@ -25,6 +25,7 @@ OutputDir={#OutputPath}
 OutputBaseFilename=WindowsGoodView-{#AppVersion}-Setup
 SetupIconFile=..\resources\app.ico
 UninstallDisplayIcon={app}\WindowsGoodView.exe
+LicenseFile=..\LICENSE
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern dark includetitlebar
@@ -44,6 +45,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "webview2"; Description: "Установить Microsoft WebView2 для встроенных сайтов (нужен интернет)"; Check: NeedsWebView2
 
 [Files]
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#AppBinary}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\resources\installed.mode"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\resources\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <uxtheme.h>
 #include <cmath>
+#include <tuple>
 
 namespace gv {
 namespace {
@@ -66,7 +67,19 @@ bool NotificationTray::Start(bool isolatedTest){
     panel_=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_LAYERED,cls.lpszClassName,L"GoodView — фоновые приложения",WS_POPUP|WS_CLIPCHILDREN,0,0,300,52,app_.boards.empty()?nullptr:app_.boards.front()->hwnd,nullptr,cls.hInstance,this);
     if(!panel_){Stop();return false;}font_=UiFont(15,GetDpiForWindow(panel_));
     tooltip_=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP,0,0,0,0,panel_,nullptr,cls.hInstance,nullptr);SendMessageW(tooltip_,TTM_SETMAXTIPWIDTH,0,420);SetWindowTheme(tooltip_,L"",L"");SendMessageW(tooltip_,TTM_SETTIPBKCOLOR,RGB(19,28,30),0);SendMessageW(tooltip_,TTM_SETTIPTEXTCOLOR,RGB(218,233,222),0);SendMessageW(tooltip_,WM_SETFONT,reinterpret_cast<WPARAM>(font_),FALSE);
-    if(!isolated_)SendTaskbarCreated();return true;
+    if(!isolated_){RecoverExplorerIcons();SendTaskbarCreated();}return true;
+}
+void NotificationTray::RecoverExplorerIcons(){
+    if(isolated_||!explorer_)return;
+    auto snapshot=ReadExplorerTray(explorer_);bool changed=false;
+    if(std::any_of(snapshot.begin(),snapshot.end(),[](const auto& icon){return icon.accessibility!=nullptr;})){changed=std::erase_if(icons_,[](const auto& icon){return icon.accessibility!=nullptr;})!=0;}
+    for(auto& icon:snapshot){
+        if(icon.pid==GetCurrentProcessId())continue;
+        auto found=std::find_if(icons_.begin(),icons_.end(),[&](const auto& existing){return existing.window==icon.window&&existing.id==icon.id||(!IsEqualGUID(icon.guid,GUID{})&&IsEqualGUID(icon.guid,existing.guid));});
+        if(found==icons_.end()){if(icons_.size()<128){icons_.push_back(std::move(icon));changed=true;}}
+        else if(found->recovered){*found=std::move(icon);changed=true;}
+    }
+    if(changed)Changed();
 }
 void NotificationTray::SendTaskbarCreated(){UINT message=RegisterWindowMessageW(L"TaskbarCreated");if(message)SendNotifyMessageW(HWND_BROADCAST,message,0,0);}
 void NotificationTray::Stop(){
@@ -81,7 +94,7 @@ void NotificationTray::Sync(bool visible,bool topmost,HWND behind){
         HWND current=ExplorerTray(proxy_);bool restarted=current&&current!=explorer_;explorer_=current;
         // A hidden receiver is enough for Shell32; it has no frame to paint.
         if(FindWindowW(L"Shell_TrayWnd",nullptr)!=proxy_)SetWindowPos(proxy_,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_NOOWNERZORDER);
-        if(restarted)SendTaskbarCreated();
+        if(restarted){RecoverExplorerIcons();SendTaskbarCreated();}
     }
     if(!panel_)return;
     topmost_=topmost;
@@ -89,7 +102,7 @@ void NotificationTray::Sync(bool visible,bool topmost,HWND behind){
     if(visible){Layout(false);if(!wasVisible){Paint();ShowWindow(panel_,SW_SHOWNOACTIVATE);}SetShellPanelLayer(panel_,topmost,behind);}
     else if(wasVisible)ShowWindow(panel_,SW_HIDE);
 }
-void NotificationTray::Expand(){if(!proxy_)return;expanded_=!expanded_;Layout();Sync(true,topmost_);app_.SyncPanels();}
+void NotificationTray::Expand(){if(!proxy_)return;expanded_=!expanded_;if(expanded_)RecoverExplorerIcons();Layout();Sync(true,topmost_);app_.SyncPanels();}
 void NotificationTray::Changed(){if(dirty_||!proxy_)return;dirty_=true;PostMessageW(proxy_,ChangedMessage,0,0);}
 void NotificationTray::Update(const traywire::Update& update){
     const auto& data=update.data;auto found=std::find_if(icons_.begin(),icons_.end(),[&](const TrayIcon& icon){return Same(icon,data);});
@@ -104,6 +117,7 @@ void NotificationTray::Update(const traywire::Update& update){
         if(update.operation!=NIM_ADD&&update.operation!=NIM_MODIFY){icons_.erase(found);Changed();return;}
         auto guid=found->guid;*found={};found->window=window;found->pid=pid;found->id=data.id;found->guid=guid;
     }
+    found->recovered=false;found->accessibility.reset();
     if(update.operation==NIM_SETVERSION)found->version=data.version;
     else{
         if(data.flags&NIF_MESSAGE)found->callback=data.callback;
@@ -115,11 +129,11 @@ void NotificationTray::Update(const traywire::Update& update){
 }
 void NotificationTray::Layout(bool refresh){
     if(!panel_||app_.monitors.empty())return;auto removed=std::erase_if(icons_,[](const TrayIcon& icon){DWORD pid=0;GetWindowThreadProcessId(icon.window,&pid);return !IsWindow(icon.window)||pid!=icon.pid;});refresh|=removed!=0;
-    size_t count=std::count_if(icons_.begin(),icons_.end(),[](const TrayIcon& icon){return !(icon.state&NIS_HIDDEN);});UINT dpi=GetDpiForWindow(panel_);float scale=app_.config.ui.textScale;auto U=[&](int value){return static_cast<int>(std::lround(value*dpi*scale/96));};
+    size_t count=std::count_if(icons_.begin(),icons_.end(),[](const TrayIcon& icon){return !(icon.state&NIS_HIDDEN)&&!IsNetworkTrayIcon(icon.guid)&&!IsDeviceTrayIcon(icon.guid);});UINT dpi=GetDpiForWindow(panel_);float scale=app_.config.ui.textScale;auto U=[&](int value){return static_cast<int>(std::lround(value*dpi*scale/96));};
     if(textScale_!=scale){refresh=true;textScale_=scale;if(font_)DeleteObject(font_);font_=UiFont(static_cast<int>(15*scale),dpi);if(tooltip_)SendMessageW(tooltip_,WM_SETFONT,reinterpret_cast<WPARAM>(font_),FALSE);}
     bool vertical=app_.config.ui.trayVertical;auto monitor=app_.monitors.front().bounds;int maxRows=std::max(1,static_cast<int>((monitor.bottom-monitor.top)*96/(dpi*scale)-80)/34);int maxColumns=vertical?1:expanded_?8:7,maxCells=vertical?5:7;if(expanded_)maxColumns=std::max(maxColumns,(static_cast<int>(count)+maxRows-1)/maxRows);
     int shown=static_cast<int>(expanded_?count:std::min<size_t>(maxCells,count)),columns=std::max(1,std::min(maxColumns,shown)),rows=std::max(1,(shown+columns-1)/columns);
-    int width=U(62+columns*34),height=U(20+rows*34);auto bounds=app_.monitors.front().bounds;float dpiScale=dpi/96.f;
+    int width=U((vertical?62:130)+columns*34),height=U((vertical?88:20)+rows*34);auto bounds=app_.monitors.front().bounds;float dpiScale=dpi/96.f;
     columns_=columns;rows_=rows;
     auto box=InterfaceBox(app_.config.ui,UiElement::Tray,{0,0,(bounds.right-bounds.left)/dpiScale,(bounds.bottom-bounds.top)/dpiScale},{0,0,width/dpiScale,height/dpiScale});
     RECT now{};GetWindowRect(panel_,&now);RECT next{bounds.left+static_cast<LONG>(std::lround(box.x*dpiScale)),bounds.top+static_cast<LONG>(std::lround(box.y*dpiScale)),0,0};next.right=next.left+width;next.bottom=next.top+height;
@@ -133,6 +147,7 @@ void NotificationTray::Tooltips(){
     // Rebuilt after Paint establishes the current cells; strings live in icons_.
     for(const auto& [rect,index]:hits_)if(index<icons_.size()){TOOLINFOW tool{sizeof(tool)};tool.uFlags=TTF_SUBCLASS;tool.hwnd=panel_;tool.uId=index+1;tool.rect=rect;tool.lpszText=icons_[index].tip.empty()?const_cast<wchar_t*>(L"Фоновое приложение"):icons_[index].tip.data();SendMessageW(tooltip_,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tool));}
     TOOLINFOW more{sizeof(more)};more.uFlags=TTF_SUBCLASS;more.hwnd=panel_;more.uId=1000;more.rect=more_;more.lpszText=const_cast<wchar_t*>(expanded_?L"Свернуть фоновые приложения":L"Показать все фоновые приложения");SendMessageW(tooltip_,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&more));
+    for(auto [rect,id,label]:{std::tuple{network_,1001,L"Wi-Fi и сеть"},std::tuple{devices_,1002,L"Безопасное извлечение USB"}}){TOOLINFOW tool{sizeof(tool)};tool.uFlags=TTF_SUBCLASS;tool.hwnd=panel_;tool.uId=id;tool.rect=rect;tool.lpszText=const_cast<wchar_t*>(label);SendMessageW(tooltip_,TTM_ADDTOOLW,0,reinterpret_cast<LPARAM>(&tool));}
 }
 void NotificationTray::Paint(){
     ++paints_;PAINTSTRUCT paint;BeginPaint(panel_,&paint);RECT client;GetClientRect(panel_,&client);if(panelBitmap_.Resize(client.right,client.bottom)){Draw(panelBitmap_.Dc(),client);panelBitmap_.RoundAlpha(UiRadius(app_.config.ui,UiElement::Tray)*app_.config.ui.textScale*GetDpiForWindow(panel_)/96.f);panelBitmap_.Present(panel_);}EndPaint(panel_,&paint);Tooltips();
@@ -142,12 +157,15 @@ void NotificationTray::Draw(HDC target,RECT client){
     HDC memory=target;HBRUSH background=CreateSolidBrush(UiTheme().panel);FillRect(memory,&client,background);DeleteObject(background);
     UINT dpi=GetDpiForWindow(panel_);float scale=app_.config.ui.textScale;auto U=[&](int value){return static_cast<int>(std::lround(value*dpi*scale/96));};bool vertical=app_.config.ui.trayVertical;RoundFill(memory,client,UiTheme().panel,U(static_cast<int>(UiRadius(app_.config.ui,UiElement::Tray))),UiTheme().border);SetBkMode(memory,TRANSPARENT);auto oldFont=SelectObject(memory,font_);SetTextColor(memory,UiTheme().muted);
     hits_.clear();int cell=0,limit=expanded_?static_cast<int>(icons_.size()):(vertical?5:7);
-    for(size_t index=0;index<icons_.size()&&cell<limit;++index){auto& icon=icons_[index];if(icon.state&NIS_HIDDEN)continue;
+    for(size_t index=0;index<icons_.size()&&cell<limit;++index){auto& icon=icons_[index];if((icon.state&NIS_HIDDEN)||IsNetworkTrayIcon(icon.guid)||IsDeviceTrayIcon(icon.guid))continue;
         int x=10+(cell%columns_)*34,y=10+(cell/columns_)*34;RECT rect{U(x),U(y),U(x+32),U(y+32)};hits_.push_back({rect,index});
         if(hover_==static_cast<int>(index))RoundFill(memory,rect,UiTheme().field,U(10));RECT image=rect;InflateRect(&image,-U(6),-U(6));
         if(icon.image&&!icon.image->pixels.empty())DrawMonoIcon(memory,*icon.image,image);else DrawGlyph(memory,Glyph::Apps,image,UiTheme().text);++cell;
     }
     int center=client.bottom/2;more_={client.right-U(44),center-U(16),client.right-U(12),center+U(16)};
+    if(vertical){more_={client.right-U(44),U(10),client.right-U(12),U(42)};network_={client.right-U(44),U(44),client.right-U(12),U(76)};devices_={client.right-U(44),U(78),client.right-U(12),U(110)};}
+    else{network_={client.right-U(112),center-U(16),client.right-U(80),center+U(16)};devices_={client.right-U(78),center-U(16),client.right-U(46),center+U(16)};}
+    for(auto [rect,glyphId,hoverId]:{std::tuple{network_,Glyph::Wifi,-3},std::tuple{devices_,Glyph::Usb,-4}}){if(hover_==hoverId)RoundFill(memory,rect,UiTheme().field,U(9));InflateRect(&rect,-U(6),-U(6));DrawGlyph(memory,glyphId,rect,UiTheme().text);}
     RoundFill(memory,more_,hover_==-2?UiTheme().field:UiTheme().card,U(9));RECT glyph=more_;InflateRect(&glyph,-U(4),-U(4));TrayToggle(memory,glyph,expanded_,UiTheme().text);
     if(!cell){RECT icon{U(16),center-U(10),U(36),center+U(10)};DrawGlyph(memory,Glyph::Tray,icon,UiTheme().muted);}
     SelectObject(memory,oldFont);
@@ -157,6 +175,9 @@ bool NotificationTray::ExportPreview(const fs::path& path){
 }
 bool NotificationTray::Invoke(const TrayIcon& source,bool rightClick,POINT point){
     TrayIcon icon=source;
+    if(IsNetworkTrayIcon(icon.guid)){ShowTrayUtility(app_,panel_,point,TrayUtility::Network);return true;}
+    if(IsDeviceTrayIcon(icon.guid)){ShowTrayUtility(app_,panel_,point,TrayUtility::Devices);return true;}
+    if(icon.accessibility){app_.BeginTrayMenu(icon.pid);Sync(Visible(),false);return InvokeAccessibleTray(icon,rightClick);}
     DWORD pid=0;GetWindowThreadProcessId(icon.window,&pid);if(!IsWindow(icon.window)||pid!=icon.pid)return false;
     // Windows moves these icons between shell components across releases. Their
     // stable system GUIDs identify our fixed commands, even without a callback.
@@ -189,7 +210,7 @@ bool NotificationTray::WriteDiagnostics(const fs::path& path)const{
     json::JsonObject report;json::JsonArray entries;
     for(const auto& icon:icons_){wchar_t cls[128]{},guid[40]{};GetClassNameW(icon.window,cls,128);StringFromGUID2(icon.guid,guid,40);json::JsonObject item;
         item.SetNamedValue(L"tip",json::JsonValue::CreateStringValue(icon.tip));item.SetNamedValue(L"class",json::JsonValue::CreateStringValue(cls));item.SetNamedValue(L"guid",json::JsonValue::CreateStringValue(guid));
-        item.SetNamedValue(L"pid",json::JsonValue::CreateNumberValue(icon.pid));item.SetNamedValue(L"id",json::JsonValue::CreateNumberValue(icon.id));item.SetNamedValue(L"callback",json::JsonValue::CreateNumberValue(icon.callback));item.SetNamedValue(L"version",json::JsonValue::CreateNumberValue(icon.version));entries.Append(item);
+        item.SetNamedValue(L"pid",json::JsonValue::CreateNumberValue(icon.pid));item.SetNamedValue(L"id",json::JsonValue::CreateNumberValue(icon.id));item.SetNamedValue(L"callback",json::JsonValue::CreateNumberValue(icon.callback));item.SetNamedValue(L"version",json::JsonValue::CreateNumberValue(icon.version));item.SetNamedValue(L"source",json::JsonValue::CreateStringValue(icon.accessibility?L"accessibility":icon.recovered?L"explorer":L"live"));entries.Append(item);
     }report.SetNamedValue(L"active",json::JsonValue::CreateBooleanValue(Active()));report.SetNamedValue(L"icons",entries);return WriteAtomic(path,std::wstring(report.Stringify()));
 }
 LRESULT NotificationTray::Forward(HWND,UINT message,WPARAM w,LPARAM l){
@@ -206,6 +227,7 @@ LRESULT CALLBACK NotificationTray::ProxyProc(HWND window,UINT message,WPARAM w,L
             traywire::Identifier id{};memcpy(&id,packet.lpData,sizeof(id));
             for(size_t index=0;index<self->icons_.size();++index){const auto& icon=self->icons_[index];bool same=!IsEqualGUID(id.guid,GUID{})?IsEqualGUID(id.guid,icon.guid):icon.window==reinterpret_cast<HWND>(static_cast<ULONG_PTR>(id.window))&&icon.id==id.id;if(!same)continue;
                 RECT rect=self->more_;for(const auto& [cell,item]:self->hits_)if(item==index){rect=cell;break;}MapWindowPoints(self->panel_,nullptr,reinterpret_cast<POINT*>(&rect),2);
+                if(IsNetworkTrayIcon(icon.guid)||IsDeviceTrayIcon(icon.guid)){rect=IsNetworkTrayIcon(icon.guid)?self->network_:self->devices_;MapWindowPoints(self->panel_,nullptr,reinterpret_cast<POINT*>(&rect),2);}
                 if(id.operation==1)return MAKELPARAM(rect.left,rect.top);if(id.operation==2)return MAKELPARAM(rect.right,rect.bottom);
             }
         }
@@ -218,10 +240,10 @@ LRESULT CALLBACK NotificationTray::PanelProc(HWND window,UINT message,WPARAM w,L
     auto* self=reinterpret_cast<NotificationTray*>(GetWindowLongPtrW(window,GWLP_USERDATA));if(message==WM_NCCREATE){self=static_cast<NotificationTray*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(self));}if(!self)return DefWindowProcW(window,message,w,l);
     if(message==WM_PAINT){self->Paint();return 0;}if(message==WM_ERASEBKGND)return 1;
     if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;
-    if(message==WM_MOUSEMOVE){POINT point{GET_X_LPARAM(l),GET_Y_LPARAM(l)};int hover=PtInRect(&self->more_,point)?-2:-1;for(auto [rect,index]:self->hits_)if(PtInRect(&rect,point))hover=static_cast<int>(index);if(self->hover_!=hover){self->hover_=hover;InvalidateRect(window,nullptr,FALSE);}TRACKMOUSEEVENT tracking{sizeof(tracking),TME_LEAVE,window,0};TrackMouseEvent(&tracking);return 0;}
+    if(message==WM_MOUSEMOVE){POINT point{GET_X_LPARAM(l),GET_Y_LPARAM(l)};int hover=PtInRect(&self->more_,point)?-2:PtInRect(&self->network_,point)?-3:PtInRect(&self->devices_,point)?-4:-1;for(auto [rect,index]:self->hits_)if(PtInRect(&rect,point))hover=static_cast<int>(index);if(self->hover_!=hover){self->hover_=hover;InvalidateRect(window,nullptr,FALSE);}TRACKMOUSEEVENT tracking{sizeof(tracking),TME_LEAVE,window,0};TrackMouseEvent(&tracking);return 0;}
     if(message==WM_MOUSELEAVE){self->hover_=-1;InvalidateRect(window,nullptr,FALSE);return 0;}
     if(message==WM_LBUTTONDBLCLK){POINT point{GET_X_LPARAM(l),GET_Y_LPARAM(l)};for(auto [rect,index]:self->hits_)if(index<self->icons_.size()&&PtInRect(&rect,point)){auto icon=self->icons_[index];DWORD pid=0;GetWindowThreadProcessId(icon.window,&pid);if(pid!=icon.pid||icon.callback<WM_USER)return 0;ClientToScreen(window,&point);auto [wParam,lParam]=traywire::Callback(icon,WM_LBUTTONDBLCLK,point);self->doubleRelease_=PostMessageW(icon.window,icon.callback,wParam,lParam)!=FALSE;return 0;}return 0;}
-    if(message==WM_LBUTTONUP||message==WM_RBUTTONUP){POINT point{GET_X_LPARAM(l),GET_Y_LPARAM(l)};if(PtInRect(&self->more_,point)){self->Expand();return 0;}for(auto [rect,index]:self->hits_)if(index<self->icons_.size()&&PtInRect(&rect,point)){auto icon=self->icons_[index];ClientToScreen(window,&point);if(message==WM_LBUTTONUP&&self->doubleRelease_){self->doubleRelease_=false;if(icon.version<4){auto [wParam,lParam]=traywire::Callback(icon,WM_LBUTTONUP,point);PostMessageW(icon.window,icon.callback,wParam,lParam);}}else self->Invoke(icon,message==WM_RBUTTONUP,point);return 0;}self->doubleRelease_=false;return 0;}
+    if(message==WM_LBUTTONUP||message==WM_RBUTTONUP){POINT point{GET_X_LPARAM(l),GET_Y_LPARAM(l)};if(PtInRect(&self->network_,point)||PtInRect(&self->devices_,point)){auto utility=PtInRect(&self->network_,point)?TrayUtility::Network:TrayUtility::Devices;ClientToScreen(window,&point);if(self->tooltip_)SendMessageW(self->tooltip_,TTM_POP,0,0);ShowTrayUtility(self->app_,window,point,utility);return 0;}if(PtInRect(&self->more_,point)){self->Expand();return 0;}for(auto [rect,index]:self->hits_)if(index<self->icons_.size()&&PtInRect(&rect,point)){auto icon=self->icons_[index];ClientToScreen(window,&point);if(message==WM_LBUTTONUP&&self->doubleRelease_){self->doubleRelease_=false;if(icon.version<4){auto [wParam,lParam]=traywire::Callback(icon,WM_LBUTTONUP,point);PostMessageW(icon.window,icon.callback,wParam,lParam);}}else self->Invoke(icon,message==WM_RBUTTONUP,point);return 0;}self->doubleRelease_=false;return 0;}
     if(message==WM_DPICHANGED){if(self->font_)DeleteObject(self->font_);self->font_=nullptr;self->textScale_=0;self->Layout();return 0;}
     if(message==WM_KEYDOWN&&w==VK_ESCAPE){self->expanded_=false;self->Layout();return 0;}
     if(message==WM_CLOSE){self->expanded_=false;self->Layout();return 0;}

@@ -85,8 +85,8 @@ std::wstring Serialize(const Config& c) {
     json::JsonObject root;root.SetNamedValue(L"version",Num(c.version));root.SetNamedValue(L"activeScene",Str(c.active));
     root.SetNamedValue(L"enabled",Bool(c.enabled));root.SetNamedValue(L"wallpaperEnabled",Bool(c.wallpaperEnabled));root.SetNamedValue(L"autoStart",Bool(c.autoStart));root.SetNamedValue(L"softwareRendering",Bool(c.softwareRendering));
     json::JsonObject ui;ui.SetNamedValue(L"searchPosition",Str(c.ui.searchPosition));ui.SetNamedValue(L"searchX",Num(c.ui.searchX));ui.SetNamedValue(L"searchY",Num(c.ui.searchY));ui.SetNamedValue(L"dockPosition",Str(c.ui.dockPosition));ui.SetNamedValue(L"railPosition",Str(c.ui.railPosition));ui.SetNamedValue(L"railLabels",Bool(c.ui.railLabels));ui.SetNamedValue(L"showActivity",Bool(c.ui.showActivity));ui.SetNamedValue(L"showTray",Bool(c.ui.showTray));ui.SetNamedValue(L"compactLaunchers",Bool(c.ui.compactLaunchers));root.SetNamedValue(L"interface",ui);
-    for(auto element:{UiElement::Navigation,UiElement::Windows,UiElement::Dock,UiElement::Tray,UiElement::Search,UiElement::Settings}){
-        const wchar_t* key=element==UiElement::Navigation?L"bar":element==UiElement::Windows?L"rail":element==UiElement::Dock?L"dock":element==UiElement::Tray?L"tray":element==UiElement::Settings?L"settings":L"search";
+    for(auto element:{UiElement::Navigation,UiElement::Windows,UiElement::Dock,UiElement::Tray,UiElement::Search,UiElement::Settings,UiElement::Power}){
+        const wchar_t* key=element==UiElement::Navigation?L"bar":element==UiElement::Windows?L"rail":element==UiElement::Dock?L"dock":element==UiElement::Tray?L"tray":element==UiElement::Settings?L"settings":element==UiElement::Power?L"power":L"search";
         auto prefix=std::wstring(key);auto [x,y]=UiAnchor(const_cast<Config::Interface&>(c.ui),element);
         ui.SetNamedValue(prefix+L"Radius",Num(UiRadius(c.ui,element)));ui.SetNamedValue(prefix+L"Position",Str(UiPosition(c.ui,element)));ui.SetNamedValue(prefix+L"Vertical",Bool(UiVertical(c.ui,element)));ui.SetNamedValue(prefix+L"X",Num(x));ui.SetNamedValue(prefix+L"Y",Num(y));
     }ui.SetNamedValue(L"designVersion",Num(c.ui.designVersion));ui.SetNamedValue(L"cardRadius",Num(c.ui.cardRadius));ui.SetNamedValue(L"windowRadius",Num(c.ui.windowRadius));ui.SetNamedValue(L"railOrbit",Bool(c.ui.railOrbit));ui.SetNamedValue(L"textScale",Num(c.ui.textScale));root.SetNamedValue(L"interface",ui);
@@ -109,8 +109,8 @@ bool Deserialize(std::wstring_view text,Config& out,std::wstring& error) {
       if(auto value=root.TryLookup(L"interface");value&&value.ValueType()==json::JsonValueType::Object){auto ui=value.GetObject();
         auto choice=[&](const wchar_t* key,std::wstring fallback,std::initializer_list<std::wstring_view> allowed){auto value=String(ui,key,fallback);return std::find(allowed.begin(),allowed.end(),value)!=allowed.end()?value:fallback;};
         c.ui.railOrbit=Boolean(ui,L"railOrbit",false);c.ui.railLabels=Boolean(ui,L"railLabels",false);c.ui.showActivity=Boolean(ui,L"showActivity",true);c.ui.showTray=Boolean(ui,L"showTray",true);c.ui.compactLaunchers=Boolean(ui,L"compactLaunchers",true);
-        for(auto element:{UiElement::Navigation,UiElement::Windows,UiElement::Dock,UiElement::Tray,UiElement::Search,UiElement::Settings}){
-          const wchar_t* key=element==UiElement::Navigation?L"bar":element==UiElement::Windows?L"rail":element==UiElement::Dock?L"dock":element==UiElement::Tray?L"tray":element==UiElement::Settings?L"settings":L"search";auto prefix=std::wstring(key);
+        for(auto element:{UiElement::Navigation,UiElement::Windows,UiElement::Dock,UiElement::Tray,UiElement::Search,UiElement::Settings,UiElement::Power}){
+          const wchar_t* key=element==UiElement::Navigation?L"bar":element==UiElement::Windows?L"rail":element==UiElement::Dock?L"dock":element==UiElement::Tray?L"tray":element==UiElement::Settings?L"settings":element==UiElement::Power?L"power":L"search";auto prefix=std::wstring(key);
           UiRadius(c.ui,element)=std::clamp(static_cast<float>(Number(ui,(prefix+L"Radius").c_str(),UiRadius(c.ui,element))),0.f,36.f);UiPosition(c.ui,element)=choice((prefix+L"Position").c_str(),UiPosition(c.ui,element),{L"top",L"bottom",L"left",L"right",L"center",L"custom",L"hidden"});
           UiVertical(c.ui,element)=Boolean(ui,(prefix+L"Vertical").c_str(),UiVertical(c.ui,element));auto [x,y]=UiAnchor(c.ui,element);x=std::clamp(static_cast<float>(Number(ui,(prefix+L"X").c_str(),x)),0.f,1.f);y=std::clamp(static_cast<float>(Number(ui,(prefix+L"Y").c_str(),y)),0.f,1.f);
         }
@@ -210,11 +210,11 @@ LauncherLayout LayoutLauncher(float width,float height){
     layout.open={width-margin-openWidth,footer,openWidth,44};layout.actions={layout.open.x-12-actionsWidth,footer,actionsWidth,44};
     layout.info={margin,footer,std::max(0.f,layout.actions.x-margin-16),44};if(layout.info.w<120)layout.info.w=0;return layout;
 }
-std::wstring& UiPosition(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return ui.barPosition;case UiElement::Windows:return ui.railPosition;case UiElement::Dock:return ui.dockPosition;case UiElement::Tray:return ui.trayPosition;case UiElement::Settings:return ui.settingsPosition;default:return ui.searchPosition;}}
+std::wstring& UiPosition(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return ui.barPosition;case UiElement::Windows:return ui.railPosition;case UiElement::Dock:return ui.dockPosition;case UiElement::Tray:return ui.trayPosition;case UiElement::Settings:return ui.settingsPosition;case UiElement::Power:return ui.powerPosition;default:return ui.searchPosition;}}
 std::wstring_view UiPosition(const Config::Interface& ui,UiElement e){return UiPosition(const_cast<Config::Interface&>(ui),e);}
-bool& UiVertical(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return ui.barVertical;case UiElement::Windows:return ui.railVertical;case UiElement::Dock:return ui.dockVertical;case UiElement::Tray:return ui.trayVertical;case UiElement::Settings:return ui.settingsVertical;default:return ui.searchVertical;}}
+bool& UiVertical(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return ui.barVertical;case UiElement::Windows:return ui.railVertical;case UiElement::Dock:return ui.dockVertical;case UiElement::Tray:return ui.trayVertical;case UiElement::Settings:return ui.settingsVertical;case UiElement::Power:return ui.powerVertical;default:return ui.searchVertical;}}
 bool UiVertical(const Config::Interface& ui,UiElement e){return UiVertical(const_cast<Config::Interface&>(ui),e);}
-std::pair<float&,float&> UiAnchor(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return {ui.barX,ui.barY};case UiElement::Windows:return {ui.railX,ui.railY};case UiElement::Dock:return {ui.dockX,ui.dockY};case UiElement::Tray:return {ui.trayX,ui.trayY};case UiElement::Settings:return {ui.settingsX,ui.settingsY};default:return {ui.searchX,ui.searchY};}}
+std::pair<float&,float&> UiAnchor(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return {ui.barX,ui.barY};case UiElement::Windows:return {ui.railX,ui.railY};case UiElement::Dock:return {ui.dockX,ui.dockY};case UiElement::Tray:return {ui.trayX,ui.trayY};case UiElement::Settings:return {ui.settingsX,ui.settingsY};case UiElement::Power:return {ui.powerX,ui.powerY};default:return {ui.searchX,ui.searchY};}}
 Box InterfaceBox(const Config::Interface& ui,UiElement e,Box area,Box size){
     float s=std::clamp(ui.textScale,0.9f,1.3f),margin=12;bool vertical=UiVertical(ui,e);auto position=UiPosition(ui,e);
     float w=0,h=0;
@@ -225,6 +225,7 @@ Box InterfaceBox(const Config::Interface& ui,UiElement e,Box area,Box size){
     case UiElement::Tray:w=280*s;h=(vertical?244:88)*s;break;
     case UiElement::Search:w=(vertical?56:350)*s;h=54*s;break;
     case UiElement::Settings:w=100*s;h=54*s;break;
+    case UiElement::Power:w=(vertical?64:176)*s;h=(vertical?176:64)*s;break;
     }
     if(size.w>0)w=size.w;if(size.h>0)h=size.h;
     w=std::clamp(w,1.f,std::max(1.f,area.w-margin*2));h=std::clamp(h,1.f,std::max(1.f,area.h-margin*2));
@@ -242,7 +243,7 @@ Box InterfaceBox(const Config::Interface& ui,UiElement e,Box area,Box size){
     if(position==L"custom"){auto [nx,ny]=UiAnchor(const_cast<Config::Interface&>(ui),e);x=margin+std::max(0.f,area.w-w-margin*2)*std::clamp(nx,0.f,1.f);y=margin+std::max(0.f,area.h-h-margin*2)*std::clamp(ny,0.f,1.f);}
     return {area.x+std::clamp(x,margin,std::max(margin,area.w-w-margin)),area.y+std::clamp(y,8.f,std::max(8.f,area.h-h-margin)),w,h};
 }
-float& UiRadius(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return ui.barRadius;case UiElement::Windows:return ui.railRadius;case UiElement::Dock:return ui.dockRadius;case UiElement::Tray:return ui.trayRadius;case UiElement::Settings:return ui.settingsRadius;default:return ui.searchRadius;}}
+float& UiRadius(Config::Interface& ui,UiElement e){switch(e){case UiElement::Navigation:return ui.barRadius;case UiElement::Windows:return ui.railRadius;case UiElement::Dock:return ui.dockRadius;case UiElement::Tray:return ui.trayRadius;case UiElement::Settings:return ui.settingsRadius;case UiElement::Power:return ui.powerRadius;default:return ui.searchRadius;}}
 float UiRadius(const Config::Interface& ui,UiElement e){return UiRadius(const_cast<Config::Interface&>(ui),e);}
 Box LauncherBox(const Config::Interface& ui,Box area){float s=ui.textScale;return InterfaceBox(ui,UiElement::Search,area,{0,0,(ui.searchVertical?620:820)*s,(ui.searchVertical?720:620)*s});}
 Box RailGrid::Cell(int index)const{return {padding+(vertical?index/rows:index%columns)*cellWidth,padding+(vertical?index%rows:index/columns)*cellHeight,cellWidth,cellHeight};}

@@ -174,6 +174,10 @@ public:
     void TryActivateProgram();
     void CancelProgramActivation();
     void ShowDesktop();
+    void TogglePowerPanel();
+    void HidePowerPanel();
+    void PowerAction(int action,HWND owner);
+    bool PowerPanelVisible()const{return powerOpen_;}
     void EnterWorkspace();
     void RefreshWindows();
     void WindowSwitcher(HWND owner);
@@ -205,6 +209,7 @@ private:
     std::map<Glyph,ComPtr<ID2D1PathGeometry>> glyphPaths_;
     std::set<std::wstring> launched_;
     bool saving_=false,applying_=false;ULONGLONG lastTile_=0;
+    bool powerOpen_=false;int powerMonitor_=0;unsigned winReleaseRetries_=0;
     bool panelSyncPending_=false,syncingPanels_=false;
     bool systemPrompt_=false;
     friend struct DesktopRegressionProbe;

@@ -38,6 +38,7 @@ void Surface::DrawBar(float width,float height){
     Box add=vertical?Box{8,height-48,width-16,40}:Box{width-48,8,40,height-16};IconButton(Glyph::Add,L"",add,[this]{app_.AddScene();});
 }
 void Surface::DrawTool(float width,float height){
+    if(element==UiElement::Power){float radius=UiRadius(app_.config.ui,element);Fill({0,0,width,height},Ink(UiTheme().panel),radius);Stroke({.5f,.5f,width-1,height-1},Ink(UiTheme().border),std::max(0.f,radius-.5f));bool vertical=app_.config.ui.powerVertical;const Glyph icons[]={Glyph::Power,Glyph::Restart,Glyph::Moon};const wchar_t* labels[]={L"Выключить компьютер",L"Перезагрузить",L"Спящий режим"};for(int i=0;i<3;++i){Box box=vertical?Box{8.f,8.f+i*56,width-16,48}:Box{8.f+i*56,8,48,height-16};IconButton(icons[i],L"",box,[this,i]{app_.PowerAction(i,hwnd);});hits_.back().tooltip=labels[i];}return;}
     float radius=UiRadius(app_.config.ui,element);
     if(element==UiElement::Search){
         bool hover=hover_==static_cast<int>(hits_.size());Box button{0,0,width,height};
@@ -129,6 +130,6 @@ void Surface::Paint(){
         }
     }
     if(clipped)rt_->PopAxisAlignedClip();auto presentStarted=profilePaint_?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};auto result=rt_->EndDraw();if(profilePaint_)paintMs_[4]+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-presentStarted).count();if(SUCCEEDED(result)&&panelBitmap_.Dc()){if(!(rail&&app_.config.ui.railOrbit))panelBitmap_.RoundAlpha(UiRadius(app_.config.ui,element)*app_.config.ui.textScale*dpi/96.f);panelBitmap_.Present(hwnd);}if(result==D2DERR_RECREATE_TARGET)Discard();EndPaint(hwnd,&paint);
-    if(!bar)SyncWeb();if((bar||rail)&&tooltip_){float scale=dpi/96.f;TOOLINFOW info{sizeof(info)};info.hwnd=hwnd;info.uId=1;info.rect=rail?RECT{0,0,client.right,client.bottom}:RECT{static_cast<LONG>(6*scale),static_cast<LONG>(6*scale),static_cast<LONG>(46*scale),static_cast<LONG>((height-6)*scale)};SendMessageW(tooltip_,TTM_NEWTOOLRECTW,0,reinterpret_cast<LPARAM>(&info));}
+    if(!bar)SyncWeb();if((bar||rail)&&tooltip_){float scale=dpi/96.f;TOOLINFOW info{sizeof(info)};info.hwnd=hwnd;info.uId=1;info.rect=(rail||element==UiElement::Power)?RECT{0,0,client.right,client.bottom}:RECT{static_cast<LONG>(6*scale),static_cast<LONG>(6*scale),static_cast<LONG>(46*scale),static_cast<LONG>((height-6)*scale)};SendMessageW(tooltip_,TTM_NEWTOOLRECTW,0,reinterpret_cast<LPARAM>(&info));}
 }
 }

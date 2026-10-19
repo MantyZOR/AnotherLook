@@ -26,9 +26,14 @@ Static instances are generated from the official Google Fonts variable fonts
 using fontTools 4.60.1; see scripts/prepare_fonts.py and resources/fonts/manifest.json.
 Fonts are embedded in WindowsGoodView.exe and used privately by this process.
 
-Gamepad, rocket, compass and moon vector paths are adapted from Lucide Icons.
+Gamepad, rocket, compass, moon, power, restart, Wi-Fi and USB vector paths are adapted from Lucide Icons.
 https://github.com/lucide-icons/lucide
 ISC license; compass and moon retain the Feather MIT attribution as well.
 The full notices and permissions are included in Lucide-LICENSE.txt.
 The original SVGs are retained in third_party/lucide and converted to cached
 native GDI+/Direct2D cubic paths by scripts/prepare_glyph_paths.py.
+
+The classic Explorer tray record layout in src/tray_import.cpp was checked
+against ManagedShell.WindowsTray/ExplorerTrayService.cs (Apache-2.0).
+The bounded C++ importer is implemented independently; the ManagedShell
+runtime is not loaded or distributed.

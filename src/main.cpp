@@ -15,7 +15,7 @@ struct ShellProbe {
         auto above=[](HWND panel,HWND board){for(HWND window=GetTopWindow(nullptr);window;window=GetWindow(window,GW_HWNDNEXT)){if(window==panel)return true;if(window==board)return false;}return false;};
         if(app.bars.size()!=app.boards.size()||app.rails.size()!=app.boards.size())return false;
         for(size_t i=0;i<app.boards.size();++i)for(HWND panel:{app.bars[i]->hwnd,app.rails[i]->hwnd})if(!IsWindowVisible(panel)||(GetWindowLongPtrW(panel,GWL_EXSTYLE)&WS_EX_TOPMOST)||GetWindow(panel,GW_OWNER)!=app.boards[i]->hwnd||!above(panel,app.boards[i]->hwnd))return false;
-        if(app.tools.size()!=app.boards.size()*2)return false;for(const auto& tool:app.tools)if(!IsWindowVisible(tool->hwnd)||(GetWindowLongPtrW(tool->hwnd,GWL_EXSTYLE)&WS_EX_TOPMOST)||GetWindow(tool->hwnd,GW_OWNER)!=app.boards[tool->monitor]->hwnd||!above(tool->hwnd,app.boards[tool->monitor]->hwnd))return false;
+        if(app.tools.size()!=app.boards.size()*3)return false;for(const auto& tool:app.tools)if(tool->element!=UiElement::Power&&(!IsWindowVisible(tool->hwnd)||(GetWindowLongPtrW(tool->hwnd,GWL_EXSTYLE)&WS_EX_TOPMOST)||GetWindow(tool->hwnd,GW_OWNER)!=app.boards[tool->monitor]->hwnd||!above(tool->hwnd,app.boards[tool->monitor]->hwnd)))return false;
         return true;
     }
     bool WindowsTaskbarsHidden()const{bool found=false;for(HWND window:ShellChrome::Discover()){wchar_t cls[128]{};GetClassNameW(window,cls,128);if(std::wstring_view(cls)!=L"Shell_TrayWnd"&&std::wstring_view(cls)!=L"Shell_SecondaryTrayWnd")continue;found=true;if(GetWindowLongPtrW(window,GWL_STYLE)&WS_VISIBLE)return false;}return found;}
@@ -41,6 +41,7 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int){
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     try{
       winrt::init_apartment(winrt::apartment_type::single_threaded);
+      {int count=0;auto args=CommandLineToArgvW(GetCommandLineW(),&count);if(count==3&&std::wstring_view(args[1])==L"--diagnose-explorer-tray"){fs::path path=fs::absolute(args[2]);LocalFree(args);return WriteExplorerTrayDiagnostics(path)?0:1;}LocalFree(args);}
       {int count=0;LPWSTR* args=CommandLineToArgvW(GetCommandLineW(),&count);if((count==4||count==6&&std::wstring_view(args[4])==L"--create-journal")&&std::wstring_view(args[1])==L"--ntfs-helper"){auto pipe=std::wstring(args[2]);DWORD parent=std::stoul(args[3]);std::wstring journals=count==6?args[5]:L"";LocalFree(args);return ntfs::RunHelper(pipe,parent,journals);}LocalFree(args);}
 #ifdef GOODVIEW_TESTING
       {int n=0;auto args=CommandLineToArgvW(GetCommandLineW(),&n);for(int i=1;i<n;++i)if(std::wstring_view(args[i])==L"--orbit-smoke"){SetEnvironmentVariableW(L"GOODVIEW_TEST_ORBIT_ONLY",L"1");}else if(std::wstring_view(args[i])==L"--motion-smoke"){SetEnvironmentVariableW(L"GOODVIEW_TEST_MOTION_ONLY",L"1");}LocalFree(args);}

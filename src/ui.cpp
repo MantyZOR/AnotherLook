@@ -80,7 +80,7 @@ void Application::UpdateMonitors(){
     // Reparent live pages before destroying their old hosts on monitor changes.
     web.HideEmbedded();for(auto& scene:config.scenes)for(auto& card:scene.cards)if(web.Exists(card.id)&&!web.Detached(card.id)){size_t index=0;for(size_t i=0;i<monitors.size();++i)if(card.monitorId==monitors[i].id)index=i;web.Position(card.id,nextBoards[index]->hwnd,{0,0,100,100},false);}
     notificationTray.Stop();tools.clear();bars.clear();rails.clear();boards=std::move(nextBoards);for(size_t i=0;i<monitors.size();++i)monitors[i].dpi=GetDpiForWindow(boards[i]->hwnd);for(size_t i=0;i<monitors.size();++i){auto bar=std::make_unique<Surface>(*this,true,static_cast<int>(i));bar->Create(true);bars.push_back(std::move(bar));}rails.clear();for(size_t i=0;i<monitors.size();++i){auto rail=std::make_unique<Surface>(*this,false,static_cast<int>(i),true);rail->Create(true);rails.push_back(std::move(rail));}
-    for(size_t i=0;i<monitors.size();++i)for(auto kind:{UiElement::Search,UiElement::Settings}){auto tool=std::make_unique<Surface>(*this,true,static_cast<int>(i),false,kind);tool->Create(true);tools.push_back(std::move(tool));}
+    for(size_t i=0;i<monitors.size();++i)for(auto kind:{UiElement::Search,UiElement::Settings,UiElement::Power}){auto tool=std::make_unique<Surface>(*this,true,static_cast<int>(i),false,kind);tool->Create(true);tools.push_back(std::move(tool));}
 }
 void Application::SetHooks(bool on){
     if(systemPrompt_)on=false;if(on)winKey.Start(events,WM_WIN_TAP);else winKey.Stop();
@@ -102,7 +102,7 @@ void Application::SwitchScene(const std::wstring& id,bool show){
     if(show)ShowDesktop();SaveSoon();
 }
 void Application::ApplyState(bool show,bool sceneOnly){if(applying_)return;applying_=true;auto&s=Active();bool enabled=config.enabled&&!preview;if(!sceneOnly)SetHooks(enabled);KillTimer(events,TIMER_CLOCK);if(enabled)for(size_t i=0;i<boards.size();++i)boards[i]->monitor=static_cast<int>(i);
-    if(enabled){if(config.ui.showTray)notificationTray.Start();else notificationTray.Stop();windows.Switch(s.id);if(!sceneOnly){for(auto&b:boards){b->Place(false);b->Show(true);}for(auto&b:bars){b->Place(false);b->Show(true);}for(auto& rail:rails){rail->Place(false);rail->Show(config.ui.railPosition!=L"hidden");}for(auto& tool:tools){tool->Place(false);tool->Show(UiPosition(config.ui,tool->element)!=L"hidden");}}windows.Tile(monitors,76);}
+    if(enabled){if(config.ui.showTray)notificationTray.Start();else notificationTray.Stop();windows.Switch(s.id);if(!sceneOnly){for(auto&b:boards){b->Place(false);b->Show(true);}for(auto&b:bars){b->Place(false);b->Show(true);}for(auto& rail:rails){rail->Place(false);rail->Show(config.ui.railPosition!=L"hidden");}for(auto& tool:tools){tool->Place(false);tool->Show(UiPosition(config.ui,tool->element)!=L"hidden"&&(tool->element!=UiElement::Power||(powerOpen_&&tool->monitor==powerMonitor_)));}}windows.Tile(monitors,76);}
     else{notificationTray.Stop();for(auto& tool:tools){tool->Show(false);tool->Place(true);}for(auto&rail:rails){rail->Show(false);rail->Place(true);}for(auto&b:bars)b->Show(false);for(size_t i=0;i<boards.size();++i){boards[i]->Place(true);boards[i]->Show(i==0);}SetTimer(events,TIMER_CLOCK,60000,nullptr);}
     if(enabled&&!launched_.contains(s.id)){launched_.insert(s.id);for(auto&card:s.cards)if(card.autoLaunch&&card.type==L"launcher"){auto all=ListAppWindows();bool running=false;for(auto&w:all)if(_wcsicmp(w.process.c_str(),card.target.c_str())==0){windows.Attach(w.hwnd,s.id);running=true;break;}if(!running){DWORD pid=0;if(LaunchTarget(card.target,card.arguments,&pid))windows.ExpectLaunch(pid,s.id);}}}
     if(enabled){for(auto& card:s.cards)if(card.autoLaunch&&(card.type==L"site"||card.type==L"link")&&!web.Exists(card.id)&&!boards.empty()){size_t screen=0;for(size_t i=0;i<monitors.size();++i)if(monitors[i].id==card.monitorId)screen=i;OpenCard(card.id,*boards[screen],card.type==L"link");}}
@@ -139,7 +139,7 @@ void Application::ShowDesktop(){
     FocusAppWindow(boards[CursorMonitor(monitors)]->hwnd);SyncPanels(true);RefreshWindows();
 }
 void Application::Enable(){StartGuardian();if(!guardianProcess||WaitForSingleObject(guardianProcess,0)==WAIT_OBJECT_0){config.enabled=false;MessageBoxW(boards.empty()?nullptr:boards.front()->hwnd,L"Не удалось включить независимый аварийный выход Ctrl + Alt + Shift + Space. Возможно, сочетание уже занято. Рабочий стол Windows остаётся доступен.",L"GoodView",MB_ICONINFORMATION);ApplyState(true);return;}if(!chrome.Begin()){MessageBoxW(nullptr,L"Не удалось сохранить состояние панели Windows. Окружение не включено.",L"GoodView",MB_ICONINFORMATION);config.enabled=false;return;}preview=false;config.enabled=true;windows.AdoptSaved();ApplyState(true);SaveSoon();ShowDesktop();}
-void Application::Pause(){CancelProgramActivation();launcher.SetStatus(L"");notificationTray.Stop();windows.Capture();config.enabled=false;panelSyncPending_=false;KillTimer(events,TIMER_PANEL_GEOMETRY);
+void Application::Pause(){HidePowerPanel();CancelProgramActivation();launcher.SetStatus(L"");notificationTray.Stop();windows.Capture();config.enabled=false;panelSyncPending_=false;KillTimer(events,TIMER_PANEL_GEOMETRY);
     EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM)->BOOL{wchar_t name[128]{};GetClassNameW(window,name,128);if(std::wstring_view(name)==L"GoodView.Edit"||std::wstring_view(name)==L"GoodView.Menu"||std::wstring_view(name)==L"GoodView.Notice")PostMessageW(window,WM_CLOSE,0,0);else if(std::wstring_view(name)==L"#32770")PostMessageW(window,WM_COMMAND,IDCANCEL,0);return TRUE;},0);launcher.Hide();SetHooks(false);web.HideEmbedded();for(auto& tool:tools){tool->Show(false);tool->Place(true);tool->Discard();}for(auto&rail:rails){rail->Show(false);rail->Place(true);}for(auto&b:boards){b->Show(false);b->Discard();}for(auto&b:bars){b->Show(false);b->Place(true);b->Discard();}chrome.Restore();windows.RestoreAll();wallpaper.Restore(true);KillTimer(events,TIMER_CLOCK);SaveSoon();Refresh();UpdateTray();}
 void Application::SaveSoon(){if(!quitting){if(events)SetTimer(events,TIMER_SAVE,350,nullptr);SyncSystemWidget();}}
 void Application::Save(){if(saving_)return;saving_=true;bool ok=WriteAtomic(dataDir/L"settings.json",Serialize(config));saving_=false;if(!ok&&!quitting)MessageBoxW(boards.empty()?nullptr:boards.front()->hwnd,L"Не удалось сохранить настройки. Проверь доступ к папке данных WindowsGoodView.",L"WindowsGoodView",MB_ICONERROR);}
@@ -147,7 +147,7 @@ void Application::Refresh(){if(quitting)return;for(auto&b:boards)b->Invalidate()
 void Application::ApplyInterface(){
     // A layout change must not switch scenes, retile user windows or close the editor.
     launcher.UpdateStyle();notificationTray.UpdateStyle();fileSettings.Refresh();bool enabled=config.enabled&&!preview;
-    for(auto& tool:tools){tool->Place(!enabled);tool->Show(enabled&&UiPosition(config.ui,tool->element)!=L"hidden");}for(auto& bar:bars)bar->Place(!enabled);for(auto& rail:rails){rail->Place(!enabled);rail->Show(enabled&&config.ui.railPosition!=L"hidden");}
+    for(auto& tool:tools){tool->Place(!enabled);tool->Show(enabled&&UiPosition(config.ui,tool->element)!=L"hidden"&&(tool->element!=UiElement::Power||(powerOpen_&&tool->monitor==powerMonitor_)));}for(auto& bar:bars)bar->Place(!enabled);for(auto& rail:rails){rail->Place(!enabled);rail->Show(enabled&&config.ui.railPosition!=L"hidden");}
     if(enabled){if(config.ui.showTray)notificationTray.Start();else notificationTray.Stop();chrome.Refresh();SetTimer(events,TIMER_SHELL_SETTLE,100,nullptr);SyncPanels();}
     SaveSoon();Refresh();customization.Refresh();
 }
@@ -283,13 +283,14 @@ void Application::SyncPanels(bool reveal){
     std::erase_if(externalMenus_,[](HWND menu){return menu&&!IsWindow(menu);});
     bool shellForeground=!foreground||foreground==GetDesktopWindow();
     for(auto* surfaces:{&boards,&bars,&rails,&tools})for(auto& surface:*surfaces)if(surface->hwnd==foreground)shellForeground=true;
+    DWORD foregroundPid=0;GetWindowThreadProcessId(foreground,&foregroundPid);if(powerOpen_&&!shellForeground&&foregroundPid!=GetCurrentProcessId())HidePowerPanel();
     bool onTop=(shellForeground||revealing)&&!trayMenuPending_&&externalMenus_.empty()&&!launcher.Visible();
     DWORD pid=0;GetWindowThreadProcessId(foreground,&pid);HWND behind=pid&&pid!=GetCurrentProcessId()?foreground:nullptr;
     size_t count=std::min(monitors.size(),std::min(boards.size(),bars.size()));
     for(size_t i=0;i<count;++i){
         bool full=!revealing&&IsFullscreenOnMonitor(foreground,monitors[i].bounds,GetCurrentProcessId());
         bars[i]->Show(!full,reveal&&onTop);bars[i]->SetPanelLayer(onTop,behind);if(i<rails.size()){rails[i]->Show(!full&&config.ui.railPosition!=L"hidden",reveal&&onTop);rails[i]->SetPanelLayer(onTop,behind);}
-        for(auto& tool:tools)if(tool->monitor==static_cast<int>(i)){tool->Show(!full&&UiPosition(config.ui,tool->element)!=L"hidden",reveal&&onTop);tool->SetPanelLayer(onTop,behind);}
+        for(auto& tool:tools)if(tool->monitor==static_cast<int>(i)){tool->Show(!full&&UiPosition(config.ui,tool->element)!=L"hidden"&&(tool->element!=UiElement::Power||(powerOpen_&&tool->monitor==powerMonitor_)),reveal&&onTop);tool->SetPanelLayer(onTop,behind);}
         if(boards[i]->covered!=full){boards[i]->covered=full;if(full)boards[i]->Discard();else boards[i]->Invalidate();}
         boards[i]->SyncNetworkAnimation(shellForeground&&!launcher.Visible());
     }
@@ -336,22 +337,16 @@ LRESULT CALLBACK Application::EventProc(HWND h,UINT m,WPARAM w,LPARAM l){auto*a=
         if(!a->winKey.TakeTap(w))return 0;
         bool modal=std::any_of(a->boards.begin(),a->boards.end(),[](const auto& board){return !IsWindowEnabled(board->hwnd);});
         if(a->config.enabled&&!a->preview&&!a->systemPrompt_&&!a->quitting&&!modal){
-            HWND previous=GetForegroundWindow();DWORD owner=0;GetWindowThreadProcessId(previous,&owner);
-            wchar_t previousClass[128]{};GetClassNameW(previous,previousClass,128);auto cls=std::wstring_view(previousClass);bool system=cls==L"Progman"||cls==L"WorkerW"||cls==L"Shell_TrayWnd"||cls==L"Shell_SecondaryTrayWnd"||cls==L"Windows.UI.Core.CoreWindow";if(owner&&owner!=GetCurrentProcessId()&&!system&&IsWindowVisible(previous)&&!IsIconic(previous))ShowWindowAsync(previous,SW_MINIMIZE);
-            a->CancelProgramActivation();a->ShowDesktop();
-            if(!a->boards.empty()){
-                HWND home=a->boards[CursorMonitor(a->monitors)]->hwnd;
-                // This is an explicit keyboard request, including from an elevated
-                // app. Use the shell switch if ordinary activation was refused.
-                if(GetForegroundWindow()!=home){SwitchToThisWindow(home,TRUE);a->SyncPanels(true);}
-            }
+            a->TogglePowerPanel();
         }
+        if(!a->winKey.ReleasePending()){a->winReleaseRetries_=0;SetTimer(h,24,50,nullptr);}
         return 0;
     }
     if(m==WM_HOTKEY){int id=static_cast<int>(w);if(std::any_of(a->boards.begin(),a->boards.end(),[](const auto& b){return !IsWindowEnabled(b->hwnd);}))return 0;if(id>=10&&id<14&&id-10<static_cast<int>(a->config.scenes.size())){a->launcher.Hide();if(!a->config.enabled&&!a->preview)a->Enable();if(a->config.enabled||a->preview)a->SwitchScene(a->config.scenes[id-10].id);}else if(id==20)a->ToggleOverview();else if(id==23){if(!a->config.enabled&&!a->preview)a->Enable();else a->ShowDesktop();}else if(id==22&&a->config.enabled){auto target=GetForegroundWindow();if(a->windows.Attach(target,a->config.active)){a->windows.Capture();a->SaveSoon();a->windows.Tile(a->monitors,76);a->Refresh();}}return 0;}
     if(m==WM_TRAY){auto event=LOWORD(l);if(event==WM_CONTEXTMENU||event==WM_RBUTTONUP)a->ShowTrayMenu();else if(event==NIN_SELECT||event==WM_LBUTTONUP)a->EnterWorkspace();return 0;}
     if(m==WM_TIMER&&w==TIMER_TRAY_MENU){KillTimer(h,TIMER_TRAY_MENU);a->trayMenuPending_=false;a->SchedulePanelSync();return 0;}
     if(m==WM_APP+84){a->fileSettings.Refresh();a->launcher.FilesChanged();static bool previousBusy=false;bool busy=a->fileIndex.Status().busy;if(busy!=previousBusy){previousBusy=busy;for(auto& bar:a->bars)bar->Invalidate();for(auto& tool:a->tools)tool->Invalidate();}return 0;}if(m==WM_TIMER&&w==TIMER_SECONDS){a->SyncSeconds();for(auto& board:a->boards)board->TickSeconds(true);return 0;}if(m==WM_TIMER&&w==TIMER_SYSTEM){a->SampleSystemWidget();return 0;}
+    if(m==WM_TIMER&&w==24){if(a->winKey.ReleasePending()||++a->winReleaseRetries_>=10)KillTimer(h,24);return 0;}
     if(m==WM_TIMER&&w>=TIMER_SHELL_SETTLE&&w<=TIMER_SHELL_SETTLE_LAST){KillTimer(h,w);if(a->config.enabled&&!a->preview&&!a->systemPrompt_){a->chrome.Refresh();if(w<TIMER_SHELL_SETTLE_LAST)SetTimer(h,w+1,200+static_cast<UINT>(w-TIMER_SHELL_SETTLE)*150,nullptr);}return 0;}
     if(m==WM_TIMER){if(w==TIMER_PROGRAM){a->TryActivateProgram();}else if(w==TIMER_PANEL_GEOMETRY){KillTimer(h,TIMER_PANEL_GEOMETRY);a->SchedulePanelSync();}else if(w==TIMER_SAVE){KillTimer(h,TIMER_SAVE);a->Save();}else if(w==TIMER_CLOCK){++a->clockTicks;a->RefreshWindows();a->Refresh();if(a->config.enabled)a->chrome.Refresh();}else if(w==TIMER_LAYOUT){KillTimer(h,TIMER_LAYOUT);if(GetTickCount64()-a->lastTile_>350){a->lastTile_=GetTickCount64();a->windows.Tile(a->monitors,76);}}else if(w==TIMER_DISPLAYS){if(a->systemPrompt_)return 0;KillTimer(h,TIMER_DISPLAYS);a->windows.Capture();a->UpdateMonitors();a->ApplyState(true);if(a->config.enabled)a->chrome.Refresh();}return 0;}
     if(m==WM_PANEL_SYNC){a->panelSyncPending_=false;a->SyncPanels();return 0;}if(m==WM_WINDOW_EVENT){a->HandleWindowEvent(static_cast<DWORD>(w),reinterpret_cast<HWND>(l));return 0;}if(m==WM_APP+30){a->ShowOverview();return 0;}if(m==WM_APP+31){a->Quit();return 0;}if(m==WM_APP+33){a->launcher.Show();return 0;}if(m==WM_APP+35){a->notificationTray.WriteDiagnostics(a->dataDir/L"tray-diagnostics.json");return 0;}if(m==WM_APP+34){a->customization.Show(a->boards.empty()?nullptr:a->boards.front()->hwnd);return 0;}if(m==WM_APP+32){a->Pause();std::error_code error;fs::remove(a->dataDir/L"rescue.flag",error);return 0;}

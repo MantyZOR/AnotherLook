@@ -43,6 +43,7 @@ $releaseFolder = Join-Path $projectRoot 'dist'
 if ($BuildOnly) { Write-Output (Join-Path $buildFolder 'WindowsGoodView.exe'); return }
 New-Item -ItemType Directory -Path $releaseFolder -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $buildFolder 'WindowsGoodView.exe') -Destination (Join-Path $releaseFolder 'WindowsGoodView.exe') -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE') -Destination (Join-Path $releaseFolder 'LICENSE.txt') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'resources\THIRD_PARTY_NOTICES.txt') -Destination $releaseFolder -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'resources\ManagedShell-LICENSE.txt') -Destination $releaseFolder -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'resources\WebView2-LICENSE.txt') -Destination $releaseFolder -Force

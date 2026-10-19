@@ -65,6 +65,8 @@ struct Config {
     struct Interface {
         std::wstring searchPosition=L"bottom",dockPosition=L"custom",railPosition=L"left";
         std::wstring barPosition=L"top",trayPosition=L"right",settingsPosition=L"custom";
+        std::wstring powerPosition=L"custom";
+        bool powerVertical=false;float powerX=0,powerY=.88f,powerRadius=18;
         bool railLabels=false,showActivity=true,compactLaunchers=true,showTray=true;
         bool barVertical=false,railVertical=true,dockVertical=false,trayVertical=false,searchVertical=false;
         bool settingsVertical=false;
@@ -81,7 +83,7 @@ struct Config {
     std::vector<Scene> scenes;
 };
 Box MinimumCardSize(const Card& card);
-enum class UiElement { Navigation, Windows, Dock, Tray, Search, Settings };
+enum class UiElement { Navigation, Windows, Dock, Tray, Search, Settings, Power };
 std::wstring& UiPosition(Config::Interface& ui,UiElement element);
 std::wstring_view UiPosition(const Config::Interface& ui,UiElement element);
 bool& UiVertical(Config::Interface& ui,UiElement element);

@@ -8,7 +8,7 @@
 namespace gv {
 namespace {
 
-const wchar_t* ElementName(UiElement element){switch(element){case UiElement::Navigation:return L"Пространства";case UiElement::Windows:return L"Открытые окна";case UiElement::Dock:return L"Действия на полотне";case UiElement::Tray:return L"Фоновые приложения";case UiElement::Settings:return L"Настройки";default:return L"Поиск";}}
+const wchar_t* ElementName(UiElement element){switch(element){case UiElement::Navigation:return L"Пространства";case UiElement::Windows:return L"Открытые окна";case UiElement::Dock:return L"Действия на полотне";case UiElement::Tray:return L"Фоновые приложения";case UiElement::Settings:return L"Настройки";case UiElement::Power:return L"Питание";default:return L"Поиск";}}
 bool IsShown(const Config::Interface& ui,UiElement e){return UiPosition(ui,e)!=L"hidden"&&(e!=UiElement::Tray||ui.showTray);}
 }
 Customization::~Customization(){Close();}
@@ -23,7 +23,7 @@ void Customization::Show(HWND owner,bool appearance){
         if(!window_)return;UINT dpi=GetDpiForWindow(window_);font_=UiFont(15,dpi);title_=UiFont(24,dpi,FW_SEMIBOLD);small_=UiFont(14,dpi,FW_NORMAL,FontRole::Body);mini_=UiFont(12,dpi);background_=CreateSolidBrush(UiTheme().panel);
         auto button=[&](int id,const wchar_t* caption){HWND child=CreateWindowW(L"BUTTON",caption,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,window_,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),cls.hInstance,nullptr);SendMessageW(child,WM_SETFONT,reinterpret_cast<WPARAM>(font_),FALSE);StyleUiButton(child,UiTheme().panel);};
         button(IDCANCEL,L"Закрыть");button(10,L"Расположение");button(11,L"Оформление");button(30,L"Экран 1");
-        button(100,L"Навигация");button(101,L"Окна");button(102,L"Действия");button(103,L"Фоновые");button(104,L"Поиск");button(105,L"Настройки");
+        button(100,L"Среда");button(101,L"Окна");button(102,L"Действия");button(103,L"Фоновые");button(104,L"Поиск");button(105,L"Настройки");button(106,L"Питание");
         button(200,L"Горизонталь");button(201,L"Вертикаль");button(210,L"Сверху");button(211,L"Снизу");button(212,L"Слева");button(213,L"Справа");button(214,L"В центре");button(220,L"Показывать элемент");
         button(228,L"Вид панели окон");button(225,L"Подписи открытых программ");button(226,L"Компактные ярлыки");button(227,L"Индикатор сайтов");
         button(230,L"Уменьшить");button(231,L"Увеличить");button(240,L"Сбросить расположение");button(241,L"Готовые расположения");
@@ -52,6 +52,7 @@ void Customization::DrawMiniPanel(HDC dc,UiElement element,RECT rect,float facto
     auto U=[&](float value){return static_cast<int>(std::lround(value*factor));};int saved=SaveDC(dc);IntersectClipRect(dc,rect.left+1,rect.top+1,rect.right-1,rect.bottom-1);
     auto text=[&](std::wstring_view value,RECT box,COLORREF color,UINT flags=DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS){auto old=SelectObject(dc,mini_);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,color);DrawTextW(dc,value.data(),static_cast<int>(value.size()),&box,flags|DT_NOPREFIX);SelectObject(dc,old);};
     const auto theme=UiTheme();bool vertical=UiVertical(app_.config.ui,element);int width=rect.right-rect.left,height=rect.bottom-rect.top;
+    if(element==UiElement::Power){const Glyph glyphs[]={Glyph::Power,Glyph::Restart,Glyph::Moon};for(int i=0;i<3;++i){int size=std::max(8,std::min(width,height)/2),x=vertical?rect.left+(width-size)/2:rect.left+width*(2*i+1)/6-size/2,y=vertical?rect.top+height*(2*i+1)/6-size/2:rect.top+(height-size)/2;DrawGlyph(dc,glyphs[i],{x,y,x+size,y+size},theme.text);}RestoreDC(dc,saved);return;}
     if(element==UiElement::Windows&&app_.config.ui.railOrbit){
         DrawRingFrame(dc,rect,element==selected_?theme.field:theme.card,element==selected_?theme.accent:theme.border,static_cast<int>(windowIcons_.size()));
         auto layout=LayoutOrbit(static_cast<int>(windowIcons_.size()),0);int size=std::max(8,U(14));
@@ -77,7 +78,7 @@ void Customization::Layout(){
     if(!window_)return;RECT client;GetClientRect(window_,&client);float factor=std::min(client.right/1100.f,client.bottom/780.f);auto U=[&](auto value){return static_cast<int>(std::lround(static_cast<float>(value)*factor));};
     auto place=[&](int id,int x,int y,int w,int h,bool visible=true){HWND child=GetDlgItem(window_,id);ShowWindow(child,visible?SW_SHOWNOACTIVATE:SW_HIDE);SetWindowPos(child,nullptr,U(x),U(y),U(w),U(h),SWP_NOZORDER|SWP_NOACTIVATE);};
     place(IDCANCEL,936,28,132,42);place(304,732,104,336,44,appearance_);place(10,32,104,172,44);place(11,216,104,172,44);place(30,552,104,140,44,!appearance_&&app_.monitors.size()>1);
-    place(100,32,166,125,38,!appearance_);for(int i=1;i<6;++i)place(100+i,167+(i-1)*107,166,i==5?110:97,38,!appearance_);
+    for(int i=0;i<7;++i)place(100+i,32+i*95,166,89,38,!appearance_);
     place(200,732,250,160,38,!appearance_);place(201,902,250,166,38,!appearance_);
     for(int i=0;i<4;++i)place(210+i,732+(i%2)*172,332+(i/2)*48,164,38,!appearance_);
     place(214,732,428,336,38,!appearance_);place(220,732,480,336,38,!appearance_);place(228,368,698,324,38,!appearance_&&selected_==UiElement::Windows);
@@ -121,7 +122,7 @@ void Customization::Draw(HDC dc,RECT client){
             DrawMiniPanel(dc,e,rect,factor);
             elements_.push_back({rect,e});
         };
-        for(auto e:{UiElement::Navigation,UiElement::Windows,UiElement::Dock,UiElement::Tray,UiElement::Search,UiElement::Settings})if(e!=selected_)drawElement(e);drawElement(selected_);
+        for(auto e:{UiElement::Navigation,UiElement::Windows,UiElement::Dock,UiElement::Tray,UiElement::Search,UiElement::Settings,UiElement::Power})if(e!=selected_)drawElement(e);drawElement(selected_);
         text(L"Перетащи выбранную панель. Расположение общее для всех мониторов.",{U(34),U(608),U(692),U(630)},small_,UiTheme().muted);
     }else{
         text(L"Оформление пространства «"+app_.Active().name+L"»",{U(34),U(182),U(692),U(216)},font_,UiTheme().text);
@@ -143,7 +144,7 @@ void Customization::Command(int id){
     auto& ui=app_.config.ui;
     if(id==IDCANCEL){Close();return;}if(id==10||id==11){appearance_=id==11;if(!appearance_&&windowIcons_.empty())CapturePreviewIcons();Refresh();return;}
     if(id==30){monitor_=(monitor_+1)%std::max(1,static_cast<int>(app_.monitors.size()));CapturePreviewIcons();Refresh();return;}
-    if(id>=100&&id<=105){selected_=static_cast<UiElement>(id-100);Refresh();return;}
+    if(id>=100&&id<=106){selected_=static_cast<UiElement>(id-100);Refresh();return;}
     if(id==200||id==201)UiVertical(ui,selected_)=id==201;
     else if(id>=210&&id<=214){const wchar_t* positions[]={L"top",L"bottom",L"left",L"right",L"center"};UiPosition(ui,selected_)=positions[id-210];}
     else if(id==220){if(selected_==UiElement::Tray)ui.showTray=!ui.showTray;else if(selected_!=UiElement::Navigation&&selected_!=UiElement::Search)UiPosition(ui,selected_)=UiPosition(ui,selected_)==L"hidden"?L"custom":L"hidden";}
@@ -165,7 +166,7 @@ void Customization::Command(int id){
         AppendMenuW(menu,MF_GRAYED,0,L"Открытые приложения сохранятся.");
         AppendMenuW(menu,MF_STRING,1,(L"Удалить «"+scene.name+L"»").c_str());AppendMenuW(menu,MF_STRING,2,L"Отмена");
         RECT rect;GetWindowRect(GetDlgItem(window_,304),&rect);auto result=StyledMenu(menu,window_,{rect.left,rect.bottom});DestroyMenu(menu);
-        if(result==1){auto id=scene.id;app_.RemoveScene(id);}Refresh();return;
+        if(result==1){auto sceneId=scene.id;app_.RemoveScene(sceneId);}Refresh();return;
     }
     else if(id==340){HMENU menu=CreatePopupMenu();const int values[]={50,75,100,150,200};for(int i=0;i<5;++i)AppendMenuW(menu,MF_STRING|(static_cast<int>(std::lround(app_.Active().networkDensity*100))==values[i]?MF_CHECKED:0),i+1,(std::to_wstring(values[i])+L"%").c_str());RECT rect;GetWindowRect(GetDlgItem(window_,340),&rect);auto result=StyledMenu(menu,window_,{rect.left,rect.bottom});DestroyMenu(menu);if(result>=1&&result<=5)app_.Active().networkDensity=values[result-1]/100.f;else return;}
     else if(id==228){ui.railOrbit=!ui.railOrbit;CapturePreviewIcons();}
@@ -193,7 +194,7 @@ LRESULT CALLBACK Customization::Proc(HWND window,UINT message,WPARAM w,LPARAM l)
     if(message==WM_NCACTIVATE)return TRUE;
     if(message==WM_PAINT){PAINTSTRUCT paint;HDC target=BeginPaint(window,&paint);RECT client;GetClientRect(window,&client);HDC memory=CreateCompatibleDC(target);HBITMAP bitmap=CreateCompatibleBitmap(target,client.right,client.bottom);auto old=SelectObject(memory,bitmap);self->Draw(memory,client);BitBlt(target,0,0,client.right,client.bottom,memory,0,0,SRCCOPY);SelectObject(memory,old);DeleteObject(bitmap);DeleteDC(memory);EndPaint(window,&paint);return 0;}
     if(message==WM_COMMAND&&HIWORD(w)==BN_CLICKED){self->Command(LOWORD(w));return 0;}
-    if(message==WM_DRAWITEM){auto& item=*reinterpret_cast<DRAWITEMSTRUCT*>(l);auto& ui=self->app_.config.ui;bool active=item.CtlID==10?!self->appearance_:item.CtlID==11?self->appearance_:item.CtlID>=100&&item.CtlID<=105?static_cast<UINT>(self->selected_)==item.CtlID-100:item.CtlID==200?!UiVertical(ui,self->selected_):item.CtlID==201?UiVertical(ui,self->selected_):item.CtlID==220?IsShown(ui,self->selected_):item.CtlID==225?ui.railLabels:item.CtlID==226?ui.compactLaunchers:item.CtlID==227?ui.showActivity:item.CtlID==302?self->app_.config.wallpaperEnabled:false;
+    if(message==WM_DRAWITEM){auto& item=*reinterpret_cast<DRAWITEMSTRUCT*>(l);auto& ui=self->app_.config.ui;bool active=item.CtlID==10?!self->appearance_:item.CtlID==11?self->appearance_:item.CtlID>=100&&item.CtlID<=106?static_cast<UINT>(self->selected_)==item.CtlID-100:item.CtlID==200?!UiVertical(ui,self->selected_):item.CtlID==201?UiVertical(ui,self->selected_):item.CtlID==220?IsShown(ui,self->selected_):item.CtlID==225?ui.railLabels:item.CtlID==226?ui.compactLaunchers:item.CtlID==227?ui.showActivity:item.CtlID==302?self->app_.config.wallpaperEnabled:false;
         if(item.CtlID>=210&&item.CtlID<=214){const wchar_t* positions[]={L"top",L"bottom",L"left",L"right",L"center"};active=UiPosition(ui,self->selected_)==positions[item.CtlID-210];}if(item.CtlID>=320&&item.CtlID<=322){const wchar_t* modes[]={L"dark",L"warm",L"cool"};active=self->app_.Active().appearance==modes[item.CtlID-320];}if(item.CtlID>=310&&item.CtlID<320){const wchar_t* accents[]={L"B4CEAC",L"A5BED5",L"D6B998",L"B8ACD5",L"D9A49C",L"9BD2C5",L"E0C780",L"B9C7DB",L"A9B9A0",L"DBA6BF"};active=_wcsicmp(self->app_.Active().accent.c_str(),accents[item.CtlID-310])==0;}if(item.CtlID>=250&&item.CtlID<=254){const float radii[]={0,8,16,24,32};active=UiRadius(ui,self->selected_)==radii[item.CtlID-250];}if(item.CtlID>=270&&item.CtlID<=274){const float radii[]={0,8,16,24,32};active=ui.cardRadius==radii[item.CtlID-270];}if(item.CtlID>=330&&item.CtlID<=333){const wchar_t* modes[]={L"near",L"links",L"static",L"none"};active=self->app_.Active().network==modes[item.CtlID-330];}if(item.CtlID>=280&&item.CtlID<=284){const float radii[]={0,8,16,24,32};active=ui.windowRadius==radii[item.CtlID-280];}if(item.CtlID==350)active=self->app_.Active().networkMotion;if(item.CtlID<310||item.CtlID>=320)DrawUiButton(item,self->font_,active,UiTheme().panel);
         if(item.CtlID>=310&&item.CtlID<320){const COLORREF colors[]={RGB(180,206,172),RGB(165,190,213),RGB(214,185,152),RGB(184,172,213),RGB(217,164,156),RGB(155,210,197),RGB(224,199,128),RGB(185,199,219),RGB(169,185,160),RGB(219,166,191)};COLORREF color=colors[item.CtlID-310];if(UiTheme().light){Scene sample=self->app_.Active();const wchar_t* hexes[]={L"B4CEAC",L"A5BED5",L"D6B998",L"B8ACD5",L"D9A49C",L"9BD2C5",L"E0C780",L"B9C7DB",L"A9B9A0",L"DBA6BF"};sample.accent=hexes[item.CtlID-310];color=PaletteFor(sample).accent;}DrawAccentChoice(item,self->font_,color,active);}
         return TRUE;}

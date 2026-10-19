@@ -40,9 +40,11 @@ public:
     ~WinKeyGuard(){Stop();}
     void Start(HWND receiver,UINT message);void Stop();
     bool TakeTap(WPARAM generation);
+    bool ReleasePending();
 private:
     HHOOK hook_{};WinTapSequence sequence_;HANDLE thread_{},ready_{};DWORD threadId_{};
     std::atomic<HWND> receiver_{};std::atomic<UINT> message_{},generation_{1};std::atomic<bool> tapQueued_{};
+    std::atomic<UINT> pendingRelease_{};
     static thread_local WinKeyGuard* current_;
     static DWORD WINAPI Run(void*);
     static LRESULT CALLBACK Keyboard(int code,WPARAM message,LPARAM value);

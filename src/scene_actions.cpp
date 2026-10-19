@@ -5,7 +5,7 @@ namespace gv {
 bool Application::WithSystemPrompt(HWND owner,const std::function<bool()>& action){
     if(systemPrompt_)return false;
     if(!config.enabled||preview)return action();
-    systemPrompt_=true;CancelProgramActivation();launcher.Hide();SetHooks(false);
+    systemPrompt_=true;HidePowerPanel();CancelProgramActivation();launcher.Hide();SetHooks(false);
     // Release the Shell_TrayWnd proxy too: system consent must communicate with
     // Explorer's real shell window while our desktop is out of the way.
     web.HideEmbedded();notificationTray.Stop();
@@ -20,7 +20,7 @@ bool Application::WithSystemPrompt(HWND owner,const std::function<bool()>& actio
         if(quitting||!config.enabled||preview)return;
         if(!chrome.Begin()){Pause();return;}
         SetHooks(true);
-        for(auto* list:{&bars,&rails,&tools})for(auto& surface:*list)surface->Show(UiPosition(config.ui,surface->element)!=L"hidden");
+        for(auto* list:{&bars,&rails,&tools})for(auto& surface:*list)surface->Show(surface->element!=UiElement::Power&&UiPosition(config.ui,surface->element)!=L"hidden");
         if(config.ui.showTray)notificationTray.Start();
         notificationTray.Sync(config.ui.showTray);ShowDesktop();
         if(IsWindow(owner)&&IsWindowVisible(owner)){

@@ -5,7 +5,7 @@
 #include <span>
 
 namespace gv {
-enum class Glyph { Apps, Desktop, Windows, Add, More, Settings, Exit, Back, Forward, Reload, Snapshot, Close, Minus, Note, Globe, Clock, Calendar, Pin, Folder, Check, Chevron, Resize, Layout, Tray, Activity, Search, Link, Expand, Collapse, Horizontal, Vertical, Sun, Moon, Cpu, Memory, Disk, Network, Briefcase, Game, Book, Code, Music, Headphones, Photo, Film, Mountain, Coffee, Star, Heart, Leaf, Compass, Rocket, Layers };
+enum class Glyph { Apps, Desktop, Windows, Add, More, Settings, Exit, Back, Forward, Reload, Snapshot, Close, Minus, Note, Globe, Clock, Calendar, Pin, Folder, Check, Chevron, Resize, Layout, Tray, Activity, Search, Link, Expand, Collapse, Horizontal, Vertical, Sun, Moon, Cpu, Memory, Disk, Network, Briefcase, Game, Book, Code, Music, Headphones, Photo, Film, Mountain, Coffee, Star, Heart, Leaf, Compass, Rocket, Layers, Power, Restart, Wifi, Usb };
 struct SpaceIcon {const wchar_t* key;const wchar_t* name;Glyph glyph;};
 std::span<const SpaceIcon> SpaceIcons();
 Glyph SceneGlyph(const Scene& scene);

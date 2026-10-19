@@ -36,11 +36,20 @@ void WinKeyGuard::Start(HWND receiver,UINT message){
     WaitForSingleObject(ready_,INFINITE);
 }
 void WinKeyGuard::Stop(){
+    ReleasePending();
     receiver_=nullptr;message_=0;++generation_;tapQueued_=false;
     if(thread_){PostThreadMessageW(threadId_,WM_QUIT,0,0);WaitForSingleObject(thread_,INFINITE);CloseHandle(thread_);thread_=nullptr;}
     if(ready_){CloseHandle(ready_);ready_=nullptr;}threadId_=0;
 }
 bool WinKeyGuard::TakeTap(WPARAM generation){if(generation!=generation_.load())return false;tapQueued_=false;return receiver_.load()!=nullptr;}
+bool WinKeyGuard::ReleasePending(){
+    UINT pending=pendingRelease_.exchange(0);if(!pending)return true;
+    INPUT input[4]{};for(auto& item:input){item.type=INPUT_KEYBOARD;item.ki.dwExtraInfo=0x4756574b;}
+    input[0].ki.wVk=input[1].ki.wVk=0xff;input[1].ki.dwFlags=KEYEVENTF_KEYUP;UINT count=2;
+    for(auto [bit,key]:{std::pair{1u,VK_LWIN},std::pair{2u,VK_RWIN}})if(pending&bit){input[count].ki.wVk=static_cast<WORD>(key);input[count++].ki.dwFlags=KEYEVENTF_KEYUP|KEYEVENTF_EXTENDEDKEY;}
+    if(SendInput(count,input,sizeof(INPUT))==count)return true;
+    pendingRelease_.fetch_or(pending);return false;
+}
 LRESULT CALLBACK WinKeyGuard::Keyboard(int code,WPARAM message,LPARAM value){
     constexpr ULONG_PTR marker=0x4756574b;
     if(code<0||!current_)return CallNextHookEx(nullptr,code,message,value);
@@ -52,16 +61,18 @@ LRESULT CALLBACK WinKeyGuard::Keyboard(int code,WPARAM message,LPARAM value){
     if((down||up)&&current_->sequence_.Key(key.vkCode,down,modifiers)){
         // Queue shell work outside the hook, once on release. The receiver checks
         // the shell state again, including a pause or system prompt in the meantime.
-        auto receiver=current_->receiver_.load();auto notification=current_->message_.load();
-        if(receiver&&notification&&!current_->tapQueued_.exchange(true)&&!PostMessageW(receiver,notification,current_->generation_.load(),0))current_->tapQueued_=false;
         // Keep physical Win+key shortcuts intact. An unused virtual key
         // consumes Start-menu activation before the real Win release is replayed.
         INPUT input[3]{};for(auto& item:input){item.type=INPUT_KEYBOARD;item.ki.dwExtraInfo=marker;}
         input[0].ki.wVk=input[1].ki.wVk=0xff;input[1].ki.dwFlags=KEYEVENTF_KEYUP;
         input[2].ki.wVk=static_cast<WORD>(key.vkCode);input[2].ki.dwFlags=KEYEVENTF_KEYUP|KEYEVENTF_EXTENDEDKEY;
         UINT sent=SendInput(3,input,sizeof(INPUT));
-        if(sent==3)return 1;
-        if(sent){INPUT release[2]={input[1],input[2]};SendInput(2,release,sizeof(INPUT));}
+        if(sent!=3)current_->pendingRelease_.fetch_or(key.vkCode==VK_LWIN?1u:2u);
+        auto receiver=current_->receiver_.load();auto notification=current_->message_.load();
+        if(receiver&&notification&&!current_->tapQueued_.exchange(true)&&!PostMessageW(receiver,notification,current_->generation_.load(),0))current_->tapQueued_=false;
+        // Never pass the original release to Start when UIPI rejected SendInput.
+        // The UI retries the marked key-up after focusing its own workspace.
+        return 1;
     }
     return CallNextHookEx(nullptr,code,message,value);
 }

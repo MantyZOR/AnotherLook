@@ -1,5 +1,5 @@
 {
-  "retrieved": "2026-10-18",
+  "retrieved": "2026-10-19",
   "files": [
     {
       "file": "compass.svg",
@@ -20,6 +20,26 @@
       "file": "rocket.svg",
       "sha256": "2b7887d9a5623f2e5e4a5d32716f93829d61b458e03b6eae33a6df648b9eb855",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/rocket.svg"
+    },
+    {
+      "file": "power.svg",
+      "sha256": "1e6b84a659aa43f826cdd8df0a63d349720004e2ccb10c33e415a990a311aa05",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/power.svg"
+    },
+    {
+      "file": "rotate-cw.svg",
+      "sha256": "ddcfe6d87240475946935e77411cd4d15a06f3d28a9b921bafed224ebe953668",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/rotate-cw.svg"
+    },
+    {
+      "file": "wifi.svg",
+      "sha256": "5c4c795d014fa95d1e1038362df44a0f0f32ded9cb08c833ae72419ebadc9a91",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/wifi.svg"
+    },
+    {
+      "file": "usb.svg",
+      "sha256": "6d3feae2abc694973d7dc8000a7016688306b82530426288c163257ac90d3e21",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/usb.svg"
     }
   ]
 }
