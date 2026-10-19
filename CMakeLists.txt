@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(WindowsGoodView VERSION 0.8.12 LANGUAGES CXX RC)
+project(WindowsGoodView VERSION 0.8.13 LANGUAGES CXX RC)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -26,6 +26,10 @@ if(EXISTS "${WEBVIEW2_ROOT}/build/native/include/WebView2.h")
 endif()
 include(CTest)
 if(BUILD_TESTING)
+add_executable(goodview_pointer_cost WIN32 tests/pointer_cost.cpp resources/app.rc)
+target_link_libraries(goodview_pointer_cost PRIVATE goodview_ui)
+add_test(NAME pointer_render_cost COMMAND goodview_pointer_cost "${CMAKE_CURRENT_BINARY_DIR}/pointer-cost")
+set_tests_properties(pointer_render_cost PROPERTIES LABELS "performance;offscreen" TIMEOUT 30 RUN_SERIAL TRUE)
 # UI probes share the exact UI object files, but are never linked into the app.
 add_executable(goodview_ui_tests WIN32 src/main.cpp resources/app.rc
   tests/panel_smoke.cpp tests/interaction_smoke.cpp tests/tray_smoke.cpp

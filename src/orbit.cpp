@@ -4,31 +4,38 @@
 #include <cmath>
 
 namespace gv {
-std::vector<WindowInfo> Surface::OrbitWindows()const{
-    std::vector<WindowInfo> result;if(monitor<0||monitor>=static_cast<int>(app_.monitors.size()))return result;
+std::vector<const WindowInfo*> Surface::OrbitWindows()const{
+    std::vector<const WindowInfo*> result;if(monitor<0||monitor>=static_cast<int>(app_.monitors.size()))return result;
     // Keep chronological order, including separate Explorer windows.
-    for(const auto& window:app_.openWindows){if(!IsWindow(window.hwnd))continue;MONITORINFOEXW info{};info.cbSize=sizeof(info);GetMonitorInfoW(MonitorFromWindow(window.hwnd,MONITOR_DEFAULTTONEAREST),&info);if(app_.monitors[monitor].label==info.szDevice)result.push_back(window);}
+    auto bounds=app_.monitors[monitor].bounds;HMONITOR target=MonitorFromRect(&bounds,MONITOR_DEFAULTTONEAREST);
+    result.reserve(app_.openWindows.size());for(const auto& window:app_.openWindows)if(IsWindow(window.hwnd)&&MonitorFromWindow(window.hwnd,MONITOR_DEFAULTTONEAREST)==target)result.push_back(&window);
     return result;
 }
 void Surface::ScrollOrbit(int delta){
     auto windows=OrbitWindows();BOOL animations=TRUE;SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION,0,&animations,0);
     bool animate=animations&&!GetSystemMetrics(SM_REMOTESESSION);pressedHit_.reset();if(GetCapture()==hwnd)ReleaseCapture();
     if(tooltip_)SendMessageW(tooltip_,TTM_POP,0,0);
-    bool moving=orbit_.Scroll(-delta/static_cast<float>(WHEEL_DELTA),static_cast<int>(windows.size()),GetTickCount64(),animate);
-    if(moving||orbitHover_.Running())SetTimer(hwnd,83,16,nullptr);else KillTimer(hwnd,83);Invalidate();
+    orbit_.Scroll(-delta/static_cast<float>(WHEEL_DELTA),static_cast<int>(windows.size()),GetTickCount64(),animate);
+    SyncOrbitTimer();InvalidateRect(hwnd,nullptr,FALSE);
+}
+void Surface::SyncOrbitTimer(){
+    bool wanted=orbit_.Running()||orbitHover_.Running();if(wanted==orbitTimerActive_)return;
+    orbitTimerActive_=wanted;if(wanted)SetTimer(hwnd,83,16,nullptr);else KillTimer(hwnd,83);
 }
 void Surface::TickOrbit(){
-    if(!rail||!app_.config.ui.railOrbit||!IsWindowVisible(hwnd)){orbit_.Finish();orbitHover_.Reset();KillTimer(hwnd,83);return;}
-    orbit_.Limit(static_cast<int>(OrbitWindows().size()));auto now=GetTickCount64();orbit_.Tick(now);orbitHover_.Tick(now);
-    if(!orbit_.Running()&&!orbitHover_.Running())KillTimer(hwnd,83);InvalidateRect(hwnd,nullptr,FALSE);
+    if(!rail||!app_.config.ui.railOrbit||!IsWindowVisible(hwnd)){orbit_.Finish();orbitHover_.Reset();SyncOrbitTimer();return;}
+    auto now=GetTickCount64();orbit_.Tick(now);orbitHover_.Tick(now);
+    SyncOrbitTimer();InvalidateRect(hwnd,nullptr,FALSE);
 }
 void Surface::HoverOrbit(int hit){
     if(!rail||!app_.config.ui.railOrbit)return;
     int slot=hit>=0&&hit<static_cast<int>(hits_.size())?hits_[hit].orbitSlot:-1;
     BOOL animations=TRUE;SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION,0,&animations,0);
     orbitHover_.Target(slot,GetTickCount64(),animations&&!GetSystemMetrics(SM_REMOTESESSION));
-    if(orbit_.Running()||orbitHover_.Running())SetTimer(hwnd,83,16,nullptr);else KillTimer(hwnd,83);
-    InvalidateRect(hwnd,nullptr,FALSE);
+    SyncOrbitTimer();
+    // Pointer events only update the target. The existing 16 ms timer owns
+    // animated frames, even when mouse polling is much faster than the display.
+    if(!orbitTimerActive_)InvalidateRect(hwnd,nullptr,FALSE);
 }
 bool Surface::ContainsHit(const Hit& hit,float x,float y)const{
     if(hit.orbitSlot<0)return x>=hit.box.x&&y>=hit.box.y&&x<hit.box.x+hit.box.w&&y<hit.box.y+hit.box.h;
@@ -42,10 +49,17 @@ void Surface::DrawOrbit(float width,float height){
     D2D1_MATRIX_3X2_F previous;rt_->GetTransform(&previous);
     orbitFrame_={previous._31,previous._32,width*previous._11,height*previous._22};
     auto windows=OrbitWindows();int count=static_cast<int>(windows.size());orbit_.Limit(count);auto layout=LayoutOrbit(count,orbit_.Position());
+    // Icon extraction may call another process. Snapshot only the fields needed
+    // for the visible slots, so reentrant window events cannot invalidate refs.
+    // Process paths, class names and app IDs are not copied on animation frames.
+    std::array<WindowInfo,OrbitCapacity*2> visible;
+    auto copy=[](WindowInfo& dest,const WindowInfo& source){dest.hwnd=source.hwnd;dest.pid=source.pid;dest.title=source.title;};
+    for(int i=0;i<layout.visible;++i){copy(visible[i*2],*windows[layout.slots[i].before]);copy(visible[i*2+1],*windows[layout.slots[i].after]);}
     orbitVisible_=layout.visible;if(rail&&hover_>=layout.visible){hover_=-1;orbitHover_.Reset();}
-    if(!orbit_.Running()&&!orbitHover_.Running())KillTimer(hwnd,83);
+    SyncOrbitTimer();
     int segments=std::max(1,layout.visible);
-    // One device-independent arc is reused for every slot and across paints.
+    // One widened band is reused for every slot and across paints. The stroke
+    // outline is computed once, instead of re-stroking nine arcs every frame.
     // Splitting it in half also covers a single window's almost-complete circle.
     if(!orbitArc_||orbitArcCount_!=segments){
         orbitArc_.Reset();orbitArcCount_=0;ComPtr<ID2D1PathGeometry> path;ComPtr<ID2D1GeometrySink> sink;
@@ -54,7 +68,13 @@ void Surface::DrawOrbit(float width,float height){
             sink->BeginFigure(point(arc.start),D2D1_FIGURE_BEGIN_HOLLOW);
             for(int half=1;half<=2;++half)sink->AddArc(D2D1::ArcSegment(point(arc.start+arc.sweep*half/2),D2D1::SizeF(OrbitRadius,OrbitRadius),0,D2D1_SWEEP_DIRECTION_CLOCKWISE,D2D1_ARC_SIZE_SMALL));
             sink->EndFigure(D2D1_FIGURE_END_OPEN);
-            if(SUCCEEDED(sink->Close())){orbitArc_=std::move(path);orbitArcCount_=segments;}
+            if(SUCCEEDED(sink->Close())){
+                ComPtr<ID2D1PathGeometry> band;ComPtr<ID2D1GeometrySink> outline;
+                if(SUCCEEDED(app_.d2d->CreatePathGeometry(&band))&&SUCCEEDED(band->Open(&outline))){
+                    outline->SetFillMode(D2D1_FILL_MODE_WINDING);
+                    if(SUCCEEDED(path->Widen(OrbitBandWidth,nullptr,D2D1::Matrix3x2F::Identity(),.1f,outline.Get()))&&SUCCEEDED(outline->Close())){orbitArc_=std::move(band);orbitArcCount_=segments;}
+                }
+            }
         }
     }
     if(orbitArc_){
@@ -65,10 +85,10 @@ void Surface::DrawOrbit(float width,float height){
                 // A barely visible resting footprint prevents edge-hover flicker
                 // with Windows' per-pixel hit testing of layered windows.
                 rt_->SetTransform(D2D1::Matrix3x2F::Rotation(-i*360.f/segments)*D2D1::Matrix3x2F::Scale(scale,scale)*D2D1::Matrix3x2F::Translation(cx,cy)*previous);
-                auto footprint=panel;footprint.a=2/255.f;brush_->SetColor(footprint);rt_->DrawGeometry(orbitArc_.Get(),brush_.Get(),OrbitBandWidth);
+                auto footprint=panel;footprint.a=2/255.f;brush_->SetColor(footprint);rt_->FillGeometry(orbitArc_.Get(),brush_.Get());
             }
             auto color=panel;float tint=.065f*amount;color.r+=(accent.r-color.r)*tint;color.g+=(accent.g-color.g)*tint;color.b+=(accent.b-color.b)*tint;brush_->SetColor(color);
-            rt_->SetTransform(D2D1::Matrix3x2F::Rotation(-i*360.f/segments)*D2D1::Matrix3x2F::Scale(scale*lift.scale,scale*lift.scale)*D2D1::Matrix3x2F::Translation(cx+lift.x*scale,cy+lift.y*scale)*previous);rt_->DrawGeometry(orbitArc_.Get(),brush_.Get(),OrbitBandWidth);
+            rt_->SetTransform(D2D1::Matrix3x2F::Rotation(-i*360.f/segments)*D2D1::Matrix3x2F::Scale(scale*lift.scale,scale*lift.scale)*D2D1::Matrix3x2F::Translation(cx+lift.x*scale,cy+lift.y*scale)*previous);rt_->FillGeometry(orbitArc_.Get(),brush_.Get());
         }
         rt_->SetTransform(previous);
     }
@@ -82,12 +102,12 @@ void Surface::DrawOrbit(float width,float height){
     HWND foreground=GetForegroundWindow();
     for(int i=0;i<layout.visible;++i){
         auto cell=layout.slots[i];auto lift=LiftOrbitSegment(i,layout.visible,orbitHover_.Value(i));float iconScale=scale*lift.scale,x=cx+lift.x*scale+(cell.x-140)*iconScale,y=cy+lift.y*scale+(cell.y-140)*iconScale;
-        auto before=windows[cell.before],after=windows[cell.after],selected=cell.blend>=.5f?after:before;
+        const auto& before=visible[i*2];const auto& after=visible[i*2+1];const auto& selected=cell.blend>=.5f?after:before;HWND handle=selected.hwnd;DWORD pid=selected.pid;
         Box hit{x-18*iconScale,y-18*iconScale,36*iconScale,36*iconScale};
         bool active=selected.hwnd==foreground;
         if(active){brush_->SetColor(Ink(UiTheme().accent,.16f));rt_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(x,y),17*iconScale,17*iconScale),brush_.Get());}
-        hits_.push_back({hit,[this,selected]{DWORD pid=0;GetWindowThreadProcessId(selected.hwnd,&pid);if(!IsWindow(selected.hwnd)||pid!=selected.pid)return;if(selected.hwnd==GetForegroundWindow())ShowWindowAsync(selected.hwnd,SW_MINIMIZE);else app_.ActivateWindow(selected.hwnd);},false});
-        hits_.back().context=[this,selected]{OpenWindowMenu({selected});};hits_.back().tooltip=selected.title;hits_.back().orbitSlot=i;
+        hits_.push_back({hit,[this,handle,pid]{DWORD owner=0;GetWindowThreadProcessId(handle,&owner);if(!IsWindow(handle)||owner!=pid)return;if(handle==GetForegroundWindow())ShowWindowAsync(handle,SW_MINIMIZE);else app_.ActivateWindow(handle);},false});
+        hits_.back().context=[this,handle,pid]{for(const auto& window:app_.openWindows)if(window.hwnd==handle&&window.pid==pid){OpenWindowMenu({window});break;}};hits_.back().tooltip=selected.title;hits_.back().orbitSlot=i;
         Box icon{x-13*iconScale,y-13*iconScale,26*iconScale,26*iconScale};
         if(cell.before==cell.after)WindowIcon(before,icon);else{WindowIcon(before,icon,1-cell.blend);WindowIcon(after,icon,cell.blend);}
     }

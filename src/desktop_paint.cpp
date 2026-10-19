@@ -100,7 +100,7 @@ void Surface::Paint(){
     auto drawUi=[&](Box box,auto draw){float scale=app_.config.ui.textScale;size_t first=hits_.size();scaledUi_=true;rt_->SetTransform(D2D1::Matrix3x2F::Scale(scale,scale)*D2D1::Matrix3x2F::Translation(box.x,box.y));draw(box.w/scale,box.h/scale);rt_->SetTransform(D2D1::Matrix3x2F::Identity());scaledUi_=false;for(size_t i=first;i<hits_.size();++i){auto& hit=hits_[i];hit.box={box.x+hit.box.x*scale,box.y+hit.box.y*scale,hit.box.w*scale,hit.box.h*scale};}};
     if(bar)drawUi({0,0,width,height},[&](float w,float h){if(element==UiElement::Navigation)DrawBar(w,h);else DrawTool(w,h);});else if(rail)drawUi({0,0,width,height},[&](float w,float h){DrawRail(w,h);});else{
         if(app_.config.wallpaperEnabled&&!scene.wallpaper.empty()){Image(scene.wallpaper,{0,0,width,height});Fill({0,0,width,height},Ink(UiTheme().canvas,UiTheme().light?.45f:.6f));}
-        else DrawNetwork(width,height);
+        else DrawNetwork(width,height,clipped?Box{paint.rcPaint.left*96.f/dpi,paint.rcPaint.top*96.f/dpi,(paint.rcPaint.right-paint.rcPaint.left)*96.f/dpi,(paint.rcPaint.bottom-paint.rcPaint.top)*96.f/dpi}:Box{});
         if(!app_.config.enabled||app_.preview){
             drawUi(app_.PanelBox(UiElement::Navigation,monitor,{0,0,width,height}),[&](float w,float h){DrawBar(w,h);});
             if(app_.config.ui.railPosition!=L"hidden")drawUi(app_.PanelBox(UiElement::Windows,monitor,{0,0,width,height}),[&](float w,float h){DrawRail(w,h);});

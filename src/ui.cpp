@@ -32,7 +32,19 @@ void PlaceNewCard(Card& card,const Scene& scene,float width){
 D2D1_COLOR_F Color(std::wstring_view hex,float alpha){unsigned n=0;try{n=std::stoul(std::wstring(hex),nullptr,16);}catch(...){}return D2D1::ColorF(n,alpha);}
 Application* CurrentApplication(){return currentApp;}
 bool HandleExitShortcut(const MSG& message){if(!currentApp||message.message!=WM_KEYDOWN||message.wParam!='Q'||!(GetKeyState(VK_CONTROL)&0x8000))return false;currentApp->Quit();return true;}
-Palette UiTheme(){return PaletteFor(currentApp?currentApp->Active():Scene{});}
+Palette UiTheme(){
+    // A conditional expression with Scene{} copied the entire live scene,
+    // including every card, on each colour lookup. Cache only the three inputs
+    // that PaletteFor actually uses; edits and theme switches remain immediate.
+    static const Scene fallback;
+    const Scene& scene=currentApp?currentApp->Active():fallback;
+    struct Cache {bool ready=false;std::wstring accent,backdrop,appearance;Palette value;};
+    thread_local Cache cache;
+    if(!cache.ready||cache.accent!=scene.accent||cache.backdrop!=scene.backdrop||cache.appearance!=scene.appearance){
+        cache.value=PaletteFor(scene);cache.accent=scene.accent;cache.backdrop=scene.backdrop;cache.appearance=scene.appearance;cache.ready=true;
+    }
+    return cache.value;
+}
 D2D1_COLOR_F Ink(COLORREF color,float alpha){return D2D1::ColorF(GetRValue(color)/255.f,GetGValue(color)/255.f,GetBValue(color)/255.f,alpha);}
 
 
@@ -324,6 +336,9 @@ void Application::HandleWindowEvent(DWORD event,HWND window){
     else if(event==EVENT_SYSTEM_FOREGROUND||event==EVENT_SYSTEM_MOVESIZEEND||event==EVENT_OBJECT_SHOW||event==EVENT_OBJECT_DESTROY)SchedulePanelSync();
 }
 void CALLBACK Application::WinEvent(HWINEVENTHOOK,DWORD event,HWND h,LONG obj,LONG child,DWORD,DWORD){if(!currentApp||(!h&&event!=EVENT_SYSTEM_MENUPOPUPEND))return;
+    // Our tooltip/panel visibility cannot change the list of external apps.
+    // In particular, hovering ring segments must not enumerate every process.
+    if(event>=EVENT_OBJECT_CREATE){DWORD pid=0;GetWindowThreadProcessId(h,&pid);if(pid==GetCurrentProcessId())return;}
     // A destroyed HWND cannot answer GetAncestor. Restrict that route to known
     // top-level windows so closing browser child controls does not rescan every app.
     if(event==EVENT_OBJECT_DESTROY&&!currentApp->windows.IsManaged(h)&&std::none_of(currentApp->openWindows.begin(),currentApp->openWindows.end(),[&](const auto& window){return window.hwnd==h;}))return;
