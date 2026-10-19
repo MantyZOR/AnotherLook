@@ -219,6 +219,7 @@ private:
     std::map<Glyph,ComPtr<ID2D1PathGeometry>> glyphPaths_;
     std::set<std::wstring> launched_;
     bool saving_=false,applying_=false;ULONGLONG lastTile_=0;
+    HWND addingSceneOwner_{};
     bool powerOpen_=false;int powerMonitor_=0;unsigned winReleaseRetries_=0;
     bool panelSyncPending_=false,syncingPanels_=false;
     bool systemPrompt_=false;

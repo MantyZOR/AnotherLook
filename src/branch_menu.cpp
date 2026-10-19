@@ -10,6 +10,12 @@ namespace gv {
 namespace {
 constexpr size_t CacheLimit=6*1024*1024;
 constexpr UINT_PTR AnimationTimer=1;
+POINT LinkEnd(POINT hub,RECT card){
+    double x=(card.left+card.right)*.5-hub.x,y=(card.top+card.bottom)*.5-hub.y;
+    double edge=std::min(x?((card.right-card.left)*.5/std::abs(x)):1.e9,y?((card.bottom-card.top)*.5/std::abs(y)):1.e9);
+    double length=std::hypot(x,y),amount=length?std::max(0.,1-edge-2/length):0.;
+    return {hub.x+static_cast<LONG>(std::lround(x*amount)),hub.y+static_cast<LONG>(std::lround(y*amount))};
+}
 Glyph ItemGlyph(std::wstring_view text){
     if(text.find(L"Замет")!=text.npos)return Glyph::Note;
     if(text.find(L"Сайт")!=text.npos||text.find(L"сайт")!=text.npos||text.find(L"браузер")!=text.npos)return Glyph::Globe;
@@ -115,7 +121,7 @@ bool BranchMenuRenderer::Compose(MotionScene& scene,bool animated){
     if(links&&s.items.size()>2){
         auto node=scene.Draw(s.size,[&](ID2D1RenderTarget* dc){
             Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brush;dc->CreateSolidColorBrush(color(s.theme.accent,.35f),&brush);if(!brush)return;
-            for(auto r:s.final)dc->DrawLine(D2D1::Point2F(static_cast<float>(s.hub.x),static_cast<float>(s.hub.y)),D2D1::Point2F((r.left+r.right)*.5f,(r.top+r.bottom)*.5f),brush.Get(),static_cast<float>(s.U(1)));
+            for(auto r:s.final){auto end=LinkEnd(s.hub,r);dc->DrawLine(D2D1::Point2F(static_cast<float>(s.hub.x),static_cast<float>(s.hub.y)),D2D1::Point2F(static_cast<float>(end.x),static_cast<float>(end.y)),brush.Get(),static_cast<float>(s.U(1)));}
             brush->SetColor(color(s.theme.accent,.78f));dc->FillEllipse(D2D1::Ellipse(D2D1::Point2F(static_cast<float>(s.hub.x),static_cast<float>(s.hub.y)),s.U(3)*1.f,s.U(3)*1.f),brush.Get());
         });
         if(node==MotionScene::None)return false;s.links=node;if(animated)scene.Animate(node,P::Opacity,0,1,0,.13);
@@ -160,7 +166,7 @@ bool BranchMenuRenderer::Render(float progress,int hover,int selected){
     if(links&&s.items.size()>2){
         Gdiplus::Bitmap image(s.size.cx,s.size.cy,s.size.cx*4,PixelFormat32bppPARGB,reinterpret_cast<BYTE*>(pixels));Gdiplus::Graphics g(&image);g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         auto c=s.theme.accent;float phase=MotionEase(progress/.32f);Gdiplus::Pen pen(Gdiplus::Color(static_cast<BYTE>(90*phase),GetRValue(c),GetGValue(c),GetBValue(c)),std::max(1.f,s.U(1)*1.f));
-        for(auto r:s.final){float x=(r.left+r.right)*.5f,y=(r.top+r.bottom)*.5f;g.DrawLine(&pen,static_cast<float>(s.hub.x),static_cast<float>(s.hub.y),s.hub.x+(x-s.hub.x)*phase,s.hub.y+(y-s.hub.y)*phase);}
+        for(auto r:s.final){auto end=LinkEnd(s.hub,r);g.DrawLine(&pen,static_cast<float>(s.hub.x),static_cast<float>(s.hub.y),s.hub.x+(end.x-s.hub.x)*phase,s.hub.y+(end.y-s.hub.y)*phase);}
         Gdiplus::SolidBrush dot(Gdiplus::Color(static_cast<BYTE>(200*phase),GetRValue(c),GetGValue(c),GetBValue(c)));int d=s.U(6);g.FillEllipse(&dot,s.hub.x-d/2,s.hub.y-d/2,d,d);
     }
     UpdateTargets(progress);

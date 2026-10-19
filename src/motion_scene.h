@@ -12,11 +12,12 @@ class MotionScene {
 public:
     using Node=size_t;
     static constexpr Node None=static_cast<Node>(-1);
-    enum class Property { X,Y,ScaleX,ScaleY,Opacity,Right,Bottom };
+    enum class Property { X,Y,ScaleX,ScaleY,Opacity,Left,Top,Right,Bottom };
     MotionScene();~MotionScene();
     MotionScene(const MotionScene&)=delete;
     bool Open(HWND window,size_t budget=12*1024*1024);
     Node Add(const PanelBitmap& bitmap,POINT position={},Node parent=None);
+    Node Group(SIZE size,Node parent=None);
     Node Draw(SIZE size,const std::function<void(ID2D1RenderTarget*)>& draw,POINT position={},Node parent=None);
     Node Clone(Node source,Node parent=None);
     bool Set(Node node,Property property,float value);

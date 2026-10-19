@@ -51,14 +51,16 @@ struct MotionScene::Impl {
     bool counted=false,failed=false;
     ~Impl(){nodes.clear();root.Reset();target.Reset();if(counted&&!--activeScenes)engine->Trim();}
     bool Check(HRESULT hr){if(FAILED(hr))failed=true;return SUCCEEDED(hr);}
-    MotionScene::Node AddNode(std::shared_ptr<Source> source,POINT position,MotionScene::Node parent){
-        Node node;node.source=std::move(source);node.size=node.source->size;auto size=node.size;
+    MotionScene::Node AddNode(std::shared_ptr<Source> source,POINT position,MotionScene::Node parent,SIZE groupSize={}){
+        Node node;node.source=std::move(source);node.size=node.source?node.source->size:groupSize;auto size=node.size;
         if(!Check(device->CreateVisual(&node.visual))||!Check(device->CreateEffectGroup(&node.effect))||!Check(device->CreateScaleTransform(&node.scale))||!Check(device->CreateRectangleClip(&node.clip)))return MotionScene::None;
         if(!Check(node.clip->SetRight(static_cast<float>(size.cx)))||!Check(node.clip->SetBottom(static_cast<float>(size.cy)))||
-           !Check(node.visual->SetContent(node.source->wrapper.Get()))||!Check(node.visual->SetEffect(node.effect.Get()))||!Check(node.visual->SetClip(node.clip.Get()))||!Check(node.visual->SetTransform(node.scale.Get()))||
+           (node.source&&!Check(node.visual->SetContent(node.source->wrapper.Get())))||!Check(node.visual->SetEffect(node.effect.Get()))||!Check(node.visual->SetClip(node.clip.Get()))||!Check(node.visual->SetTransform(node.scale.Get()))||
            !Check(node.visual->SetOffsetX(static_cast<float>(position.x)))||!Check(node.visual->SetOffsetY(static_cast<float>(position.y))))return MotionScene::None;
         auto* ancestor=parent==MotionScene::None?root.Get():nodes.at(parent).visual.Get();
-        if(!Check(ancestor->AddVisual(node.visual.Get(),TRUE,nullptr)))return MotionScene::None;
+        // Calls arrive back-to-front. With a null reference, FALSE appends on
+        // top; TRUE would put every new visual UNDER all existing siblings.
+        if(!Check(ancestor->AddVisual(node.visual.Get(),FALSE,nullptr)))return MotionScene::None;
         nodes.push_back(std::move(node));return nodes.size()-1;
     }
 };
@@ -99,12 +101,13 @@ MotionScene::Node MotionScene::Add(const PanelBitmap& bitmap,POINT position,Node
     if(!s.Check(s.device->CreateSurfaceFromHwnd(source->window,&source->wrapper)))return None;
     s.bytes+=bytes;return s.AddNode(std::move(source),position,parent);
 }
-MotionScene::Node MotionScene::Clone(Node source,Node parent){if(!impl_||source>=impl_->nodes.size()||impl_->failed)return None;auto copy=impl_->nodes[source].source;return impl_->AddNode(std::move(copy),{},parent);}
+MotionScene::Node MotionScene::Group(SIZE size,Node parent){if(!impl_||impl_->failed||size.cx<=0||size.cy<=0)return None;return impl_->AddNode(nullptr,{},parent,size);}
+MotionScene::Node MotionScene::Clone(Node source,Node parent){if(!impl_||source>=impl_->nodes.size()||impl_->failed||!impl_->nodes[source].source)return None;auto copy=impl_->nodes[source].source;return impl_->AddNode(std::move(copy),{},parent);}
 bool MotionScene::Set(Node id,Property property,float value){
     if(!impl_||impl_->failed||id>=impl_->nodes.size())return false;auto& n=impl_->nodes[id];HRESULT hr=E_FAIL;
     switch(property){case Property::X:hr=n.visual->SetOffsetX(value);break;case Property::Y:hr=n.visual->SetOffsetY(value);break;
     case Property::ScaleX:hr=n.scale->SetScaleX(value);break;case Property::ScaleY:hr=n.scale->SetScaleY(value);break;
-    case Property::Opacity:hr=n.effect->SetOpacity(value);break;case Property::Right:hr=n.clip->SetRight(value);break;case Property::Bottom:hr=n.clip->SetBottom(value);break;}
+    case Property::Opacity:hr=n.effect->SetOpacity(value);break;case Property::Left:hr=n.clip->SetLeft(value);break;case Property::Top:hr=n.clip->SetTop(value);break;case Property::Right:hr=n.clip->SetRight(value);break;case Property::Bottom:hr=n.clip->SetBottom(value);break;}
     return impl_->Check(hr);
 }
 bool MotionScene::Animate(Node id,Property property,float from,float to,double delay,double seconds){
@@ -116,7 +119,7 @@ bool MotionScene::Animate(Node id,Property property,float from,float to,double d
     if(!s.Check(curve->AddCubic(delay,from,3*delta/t,-3*delta/(t*t),delta/(t*t*t)))||!s.Check(curve->End(delay+seconds,to)))return false;
     HRESULT hr=E_FAIL;switch(property){case Property::X:hr=n.visual->SetOffsetX(curve.Get());break;case Property::Y:hr=n.visual->SetOffsetY(curve.Get());break;
     case Property::ScaleX:hr=n.scale->SetScaleX(curve.Get());break;case Property::ScaleY:hr=n.scale->SetScaleY(curve.Get());break;
-    case Property::Opacity:hr=n.effect->SetOpacity(curve.Get());break;case Property::Right:hr=n.clip->SetRight(curve.Get());break;case Property::Bottom:hr=n.clip->SetBottom(curve.Get());break;}
+    case Property::Opacity:hr=n.effect->SetOpacity(curve.Get());break;case Property::Left:hr=n.clip->SetLeft(curve.Get());break;case Property::Top:hr=n.clip->SetTop(curve.Get());break;case Property::Right:hr=n.clip->SetRight(curve.Get());break;case Property::Bottom:hr=n.clip->SetBottom(curve.Get());break;}
     return s.Check(hr);
 }
 bool MotionScene::Commit(){if(!impl_||impl_->failed)return false;++impl_->commits;return impl_->Check(impl_->device->Commit());}

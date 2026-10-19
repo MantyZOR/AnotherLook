@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.8.17"
+  #define AppVersion "0.8.18"
 #endif
 #ifndef AppBinary
   #define AppBinary "..\build\native\WindowsGoodView.exe"

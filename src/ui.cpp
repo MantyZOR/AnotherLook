@@ -194,7 +194,25 @@ void Application::AddFolder(int monitor){
     if(boards.empty())return;monitor=std::clamp(monitor,0,static_cast<int>(boards.size())-1);web.HideEmbedded();
     auto path=ChooseFolder(boards[monitor]->hwnd,L"Папка на полотне");if(path){auto name=fs::path(*path).filename().wstring();if(name.empty())name=*path;Program folder{name,*path};folder.kind=2;UseProgram(folder,true,monitor);}Refresh();
 }
-void Application::AddScene(){if(boards.empty())return;int screen=CursorMonitor(monitors);if(config.scenes.size()>=32){ShowNotice(boards[screen]->hwnd,L"Пространства",L"Можно сохранить до 32 пространств.");return;}Card card;card.title=L"Новое пространство";card.type=L"scene";web.HideEmbedded();if(EditDialog(boards[screen]->hwnd,card,L"Новое пространство")){Scene scene;scene.id=NewId();scene.name=card.title;scene.description=card.content;scene.accent=Active().accent;scene.backdrop=Active().backdrop;scene.appearance=Active().appearance;ChooseSpaceIcon(boards[screen]->hwnd,scene.icon);config.scenes.push_back(scene);SwitchScene(scene.id);}Refresh();}
+void Application::AddScene(){
+    // Every monitor's navigation panel can call this while a modal loop pumps
+    // messages. Keep the entire creation flow, including its icon picker, single.
+    if(addingSceneOwner_){
+        HWND popup=GetLastActivePopup(addingSceneOwner_);
+        if(popup&&popup!=addingSceneOwner_&&IsWindowVisible(popup)&&!(GetWindowLongPtrW(addingSceneOwner_,GWL_EXSTYLE)&WS_EX_NOACTIVATE))FocusAppWindow(popup);
+        return;
+    }
+    if(boards.empty())return;int screen=CursorMonitor(monitors);if(screen>=static_cast<int>(boards.size()))screen=0;
+    addingSceneOwner_=boards[screen]->hwnd;if(!addingSceneOwner_)return;
+    struct Reset{HWND& owner;~Reset(){owner=nullptr;}} reset{addingSceneOwner_};
+    if(config.scenes.size()>=32){ShowNotice(addingSceneOwner_,L"Пространства",L"Можно сохранить до 32 пространств.");return;}
+    Card card;card.title=L"Новое пространство";card.type=L"scene";web.HideEmbedded();
+    if(EditDialog(addingSceneOwner_,card,L"Новое пространство")){
+        Scene scene;scene.id=NewId();scene.name=card.title;scene.description=card.content;scene.accent=Active().accent;scene.backdrop=Active().backdrop;scene.appearance=Active().appearance;
+        ChooseSpaceIcon(addingSceneOwner_,scene.icon);config.scenes.push_back(scene);SwitchScene(scene.id);
+    }
+    Refresh();
+}
 void Application::OpenCard(const std::wstring& id,Surface& surface,bool separate){
     auto* card=FindCard(id);if(!card)return;
     if(card->type==L"site"||card->type==L"link"){

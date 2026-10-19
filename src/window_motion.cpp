@@ -8,9 +8,10 @@
 namespace gv {
 namespace {
 constexpr UINT_PTR SubclassId=0x47564d;
+constexpr UINT StartMotionMessage=WM_APP+0x5d1;
 using Property=MotionScene::Property;
 struct Reveal {
-    HWND proxy{};MotionScene scene;RECT bounds{};bool layered=false;
+    HWND proxy{};MotionScene scene;RECT bounds{};bool layered=false,initializing=false,cancelled=false,destroyed=false;UINT_PTR sequence=0;
     ~Reveal(){if(proxy)DestroyWindow(proxy);}
 };
 LRESULT CALLBACK RevealProc(HWND,UINT,WPARAM,LPARAM,UINT_PTR,DWORD_PTR);
@@ -38,40 +39,61 @@ bool Prepare(HWND window,Reveal& state){
     DWORD ex=WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE|WS_EX_TRANSPARENT|WS_EX_NOREDIRECTIONBITMAP;
     if(GetWindowLongPtrW(window,GWL_EXSTYLE)&WS_EX_TOPMOST)ex|=WS_EX_TOPMOST;
     state.proxy=CreateWindowExW(ex,cls.lpszClassName,L"",WS_POPUP,state.bounds.left,state.bounds.top,width,height,window,nullptr,cls.hInstance,nullptr);
-    if(!state.proxy||!state.scene.Open(state.proxy,36*1024*1024))return false;
-    PanelBitmap image;if(!image.Resize(width,height))return false;
-    RECT rect{0,0,width,height};auto theme=UiTheme();HBRUSH background=CreateSolidBrush(theme.panel);FillRect(image.Dc(),&rect,background);DeleteObject(background);
-    // Only our own window paints into this one-shot image. WM_PRINT also asks
-    // native child controls and the widget preview to draw into the same DC.
+    if(!state.proxy||!state.scene.Open(state.proxy,24*1024*1024))return false;
+    PanelBitmap sheet,image;if(!sheet.Resize(width,height)||!image.Resize(width,height))return false;
+    RECT rect{0,0,width,height};auto theme=UiTheme();HBRUSH background=CreateSolidBrush(theme.panel);FillRect(sheet.Dc(),&rect,background);DeleteObject(background);
+    // Preserve the exact frame and parent painting. Native child controls are
+    // captured separately into one shared image, never re-painted per frame.
+    SendMessageW(window,WM_PRINT,reinterpret_cast<WPARAM>(sheet.Dc()),PRF_CLIENT|PRF_NONCLIENT|PRF_ERASEBKGND);
+    BitBlt(image.Dc(),0,0,width,height,sheet.Dc(),0,0,SRCCOPY);
     SendMessageW(window,WM_PRINT,reinterpret_cast<WPARAM>(image.Dc()),PRF_CLIENT|PRF_CHILDREN|PRF_NONCLIENT|PRF_ERASEBKGND);
     float dpi=GetDpiForWindow(window)/96.f;
     auto stored=reinterpret_cast<INT_PTR>(GetPropW(window,L"GoodView.Radius"));
-    float radius=stored?static_cast<float>(stored-1)*dpi:0.f;image.RoundAlpha(radius);
-    auto color=[](COLORREF c,float alpha=1.f){return D2D1::ColorF(GetRValue(c)/255.f,GetGValue(c)/255.f,GetBValue(c)/255.f,alpha);};
-    auto sheet=state.scene.Draw({width,height},[&](ID2D1RenderTarget* dc){
-        Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brush;dc->CreateSolidColorBrush(color(theme.panel),&brush);
-        if(brush)dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(0,0,static_cast<float>(width),static_cast<float>(height)),radius,radius),brush.Get());
-    });
-    auto content=state.scene.Add(image);image.Reset();
-    auto outline=state.scene.Draw({width,height},[&](ID2D1RenderTarget* dc){
-        Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brush;dc->CreateSolidColorBrush(color(theme.accent),&brush);if(!brush)return;
-        float inset=std::max(1.f,dpi),r=std::max(0.f,radius-inset);
-        dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(inset,inset,width-inset,height-inset),r,r),brush.Get(),dpi);
-        float y=std::min(height*.25f,76*dpi),margin=24*dpi;
-        dc->DrawLine(D2D1::Point2F(margin,y),D2D1::Point2F(width-margin,y),brush.Get(),dpi*.6f);
-    });
-    if(sheet==MotionScene::None||content==MotionScene::None||outline==MotionScene::None)return false;
-    for(auto node:{sheet,outline}){
-        state.scene.Animate(node,Property::Right,1,static_cast<float>(width),0,.13);
-        state.scene.Animate(node,Property::Bottom,std::max(2.f,3*dpi),static_cast<float>(height),.10,.26);
+    float radius=stored?static_cast<float>(stored-1)*dpi:0.f;sheet.RoundAlpha(radius);image.RoundAlpha(radius);
+    auto reveal=state.scene.Group({width,height});if(reveal==MotionScene::None)return false;
+    if(state.scene.Add(sheet,{},reveal)==MotionScene::None)return false;sheet.Reset();
+    // Same structure as the chosen draft reference: a 3%-height top strip
+    // opens across, then the whole group unfolds; its children fade in during
+    // that unfolding. No opaque sheet can cover the content siblings.
+    state.scene.Animate(reveal,Property::Right,1,static_cast<float>(width),0,.1984);
+    state.scene.Animate(reveal,Property::Bottom,std::max(2.f,height*.03f),static_cast<float>(height),.1984,.4216);
+    state.scene.Animate(reveal,Property::Opacity,.2f,1,0,.1984);
+    // Prefer row gaps for slice boundaries, so labels and buttons do not fade
+    // in separate halves. Tall previews may span several rows.
+    std::vector<RECT> fields;
+    struct FieldData{HWND owner;std::vector<RECT>* fields;int maximumHeight;} fieldData{window,&fields,static_cast<int>(96*dpi)};
+    EnumChildWindows(window,[](HWND child,LPARAM value){auto& data=*reinterpret_cast<FieldData*>(value);if(GetParent(child)!=data.owner||!(GetWindowLongPtrW(child,GWL_STYLE)&WS_VISIBLE))return TRUE;
+        RECT r{};GetWindowRect(child,&r);MapWindowPoints(nullptr,data.owner,reinterpret_cast<POINT*>(&r),2);if(r.bottom-r.top<=data.maximumHeight){r.top-=2;r.bottom+=2;data.fields->push_back(r);}return TRUE;},reinterpret_cast<LPARAM>(&fieldData));
+    std::sort(fields.begin(),fields.end(),[](RECT a,RECT b){return a.top<b.top;});
+    std::vector<int> gaps;int bottom=0;for(auto r:fields){if(r.top>bottom+4)gaps.push_back((bottom+r.top)/2);bottom=std::max(bottom,static_cast<int>(r.bottom));}if(bottom<height-4)gaps.push_back((bottom+height)/2);
+    std::vector<int> cuts{0};for(int i=1;i<5;++i){int desired=height*i/5,cut=desired,best=height/8+1;for(int gap:gaps)if(gap>cuts.back()+20*dpi&&gap<height-20*dpi&&std::abs(gap-desired)<best){cut=gap;best=std::abs(gap-desired);}
+        // A distant gap must not collapse all the rows into one reveal.
+        if(std::abs(cut-desired)>height/8)cut=desired;if(cut>cuts.back()+8&&cut<height-8)cuts.push_back(cut);
+    }cuts.push_back(height);
+    MotionScene::Node source=MotionScene::None;
+    for(size_t i=0;i+1<cuts.size();++i){auto node=source==MotionScene::None?state.scene.Add(image,{},reveal):state.scene.Clone(source,reveal);if(node==MotionScene::None)return false;if(source==MotionScene::None)source=node;
+        state.scene.Set(node,Property::Top,static_cast<float>(cuts[i]));state.scene.Set(node,Property::Bottom,static_cast<float>(cuts[i+1]));
+        state.scene.Animate(node,Property::Opacity,0,1,.22+i*.055,.4);
     }
-    state.scene.Animate(content,Property::Opacity,0,1,.14,.28);
-    state.scene.Animate(outline,Property::Opacity,.7f,0,.23,.19);
     return true;
 }
 LRESULT CALLBACK RevealProc(HWND window,UINT message,WPARAM w,LPARAM l,UINT_PTR,DWORD_PTR data){
     auto* state=reinterpret_cast<Reveal*>(data);
-    if(message==WM_NCDESTROY){Restore(window,state,false);return DefSubclassProc(window,message,w,l);}
+    if(message==WM_NCDESTROY){if(state->initializing){state->destroyed=state->cancelled=true;KillTimer(window,WindowMotionTimer);RemoveWindowSubclass(window,RevealProc,SubclassId);}else Restore(window,state,false);return DefSubclassProc(window,message,w,l);}
+    if(message==StartMotionMessage){
+        if(w!=state->sequence||state->initializing||state->proxy)return 0;
+        // The caller has now selected and focused its actual inputs. Standard
+        // EDIT controls must be visible before WM_PRINT can render their text.
+        state->initializing=true;bool ready=false;
+        try{
+            RedrawWindow(window,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW);
+            ready=Prepare(window,*state);
+            if(ready&&!state->cancelled){ShowWindow(state->proxy,SW_SHOWNOACTIVATE);ready=state->scene.Commit()&&SetTimer(window,WindowMotionTimer,WindowMotionDuration+20,nullptr);}
+        }catch(...){ready=false;}
+        state->initializing=false;
+        if(state->destroyed)delete state;else if(!ready||state->cancelled)Restore(window,state,true);
+        return 0;
+    }
     // This is a one-shot cleanup timer, NOT a frame timer. Animation curves
     // continue on the compositor even while this UI thread is busy painting.
     if(message==WM_TIMER&&w==WindowMotionTimer){Restore(window,state,true);return 0;}
@@ -83,7 +105,7 @@ LRESULT CALLBACK RevealProc(HWND window,UINT message,WPARAM w,LPARAM l,UINT_PTR,
         if(!(pos->flags&SWP_NOSIZE)&&(pos->cx!=state->bounds.right-state->bounds.left||pos->cy!=state->bounds.bottom-state->bounds.top))interrupt=true;
         if(!(pos->flags&SWP_NOMOVE)&&(pos->x!=state->bounds.left||pos->y!=state->bounds.top))interrupt=true;
     }
-    if(interrupt)Restore(window,state,true);
+    if(interrupt){if(state->initializing)state->cancelled=true;else Restore(window,state,true);}
     return DefSubclassProc(window,message,w,l);
 }
 }
@@ -96,17 +118,15 @@ void ShowBlueprintWindow(HWND window,int command){
     if(IsWindowVisible(window)||!ClientMotionAllowed()||(app&&!app->config.ui.windowMotion)||(GetWindowLongPtrW(window,GWL_EXSTYLE)&WS_EX_LAYERED)){
         FinishWindowMotion(window);ShowWindow(window,command);return;
     }
-    auto state=std::make_unique<Reveal>();
-    if(!Prepare(window,*state)||!SetWindowSubclass(window,RevealProc,SubclassId,reinterpret_cast<DWORD_PTR>(state.get()))){state.reset();ShowWindow(window,command);return;}
+    auto state=std::make_unique<Reveal>();GetWindowRect(window,&state->bounds);static UINT_PTR sequence=0;state->sequence=++sequence;
+    if(!SetWindowSubclass(window,RevealProc,SubclassId,reinterpret_cast<DWORD_PTR>(state.get()))){ShowWindow(window,command);return;}
     auto* live=state.release();SetWindowLongPtrW(window,GWL_EXSTYLE,GetWindowLongPtrW(window,GWL_EXSTYLE)|WS_EX_LAYERED);live->layered=true;
     // Alpha zero makes Windows pass mouse hits through the live HWND. One is
     // visually negligible but keeps its controls interactive under the proxy.
     if(!SetLayeredWindowAttributes(window,0,1,LWA_ALPHA)){Restore(window,live,false);ShowWindow(window,command);return;}
     ShowWindow(window,command);
     if(!WindowMotionActive(window))return;
-    RedrawWindow(window,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW);
-    ShowWindow(live->proxy,SW_SHOWNOACTIVATE);
-    if(!live->scene.Commit()||!SetTimer(window,WindowMotionTimer,WindowMotionDuration+20,nullptr))FinishWindowMotion(window);
+    if(!PostMessageW(window,StartMotionMessage,live->sequence,0))FinishWindowMotion(window);
 }
 void EditMotionPreferences(HWND owner){
     auto* app=CurrentApplication();if(!app)return;auto& ui=app->config.ui;
